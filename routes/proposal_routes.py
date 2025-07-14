@@ -1,10 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 from pydantic import BaseModel, Field
 from db import get_db_session
 from services.proposal_service import ProposalService
-from utils.auth import get_current_user_id
+from utils.auth import get_current_user_id, get_current_user_id_flexible
 import logging
 
 logger = logging.getLogger(__name__)
@@ -64,17 +64,23 @@ class ProposalSummary(BaseModel):
 @router.post("/generate", response_model=ProposalResponse, status_code=status.HTTP_201_CREATED)
 async def generate_proposal(
     generate_data: ProposalGenerate,
+    request: Request,
     db: AsyncSession = Depends(get_db_session),
-    current_user_id: str = Depends(get_current_user_id)
+    current_user_id: str = Depends(get_current_user_id_flexible)
 ):
     """Generate a new proposal using AI"""
     try:
+        logger.info(f"🚀 Generating proposal for user: {current_user_id}")
+        logger.info(f"📋 Request data: funding_opportunity_id={generate_data.funding_opportunity_id}")
+        
         proposal_service = ProposalService(db)
         proposal = await proposal_service.generate_proposal(
             user_id=current_user_id,
             funding_opportunity_id=generate_data.funding_opportunity_id,
             custom_instructions=generate_data.custom_instructions
         )
+        
+        logger.info(f"✅ Proposal generated successfully for user: {current_user_id}")
         return ProposalResponse(**proposal.to_dict())
     except ValueError as e:
         logger.warning(f"Proposal generation failed: {str(e)}")

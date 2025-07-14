@@ -173,6 +173,12 @@
             <button type="submit" id="submitBtn">Generate Proposal</button>
         </form>
         
+        <div style="margin: 20px 0; padding: 15px; background-color: #f8f9fa; border-radius: 4px;">
+            <h3 style="margin: 0 0 10px 0; color: #2c3e50;">🔧 Development Tools</h3>
+            <button type="button" id="testAuthBtn" style="background-color: #17a2b8; margin-right: 10px;">Generate Test Token</button>
+            <button type="button" id="debugAuthBtn" style="background-color: #6c757d;">Debug Auth Headers</button>
+        </div>
+        
         <div id="status"></div>
         
         <div class="result-container">
@@ -186,6 +192,8 @@
         const submitBtn = document.getElementById('submitBtn');
         const statusDiv = document.getElementById('status');
         const resultTextarea = document.getElementById('result');
+        const testAuthBtn = document.getElementById('testAuthBtn');
+        const debugAuthBtn = document.getElementById('debugAuthBtn');
 
         // Show status message
         function showStatus(message, type = 'loading') {
@@ -267,14 +275,23 @@
             resultTextarea.value = '';
 
             try {
-                // Make API call
+                // Prepare headers for authentication
+                const headers = {
+                    'Content-Type': 'application/json'
+                };
+                
+                // Add Bearer token if available
+                const token = localStorage.getItem('access_token') || localStorage.getItem('token');
+                if (token) {
+                    headers['Authorization'] = `Bearer ${token}`;
+                    console.log('Using stored token for authentication');
+                }
+                
+                // Make API call with credentials
                 const response = await fetch('/api/proposals/generate', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        // Note: In a real app, you'd include auth headers here
-                        // 'Authorization': `Bearer ${localStorage.getItem('token')}`
-                    },
+                    headers: headers,
+                    credentials: 'include', // Include cookies for session-based auth
                     body: JSON.stringify(payload)
                 });
 
@@ -325,6 +342,56 @@
             document.getElementById(fieldId).addEventListener('input', () => {
                 clearStatus();
             });
+        });
+
+        // Test authentication button
+        testAuthBtn.addEventListener('click', async () => {
+            try {
+                showStatus('🔧 Generating test authentication token...', 'loading');
+                
+                const response = await fetch('/admin/test-auth', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include'
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    localStorage.setItem('access_token', data.access_token);
+                    showStatus('✅ Test token generated and saved to localStorage!', 'success');
+                    console.log('Test token saved:', data.access_token.substring(0, 20) + '...');
+                } else {
+                    const error = await response.json();
+                    showStatus(`❌ Failed to generate test token: ${error.detail}`, 'error');
+                }
+            } catch (error) {
+                showStatus(`❌ Error generating test token: ${error.message}`, 'error');
+                console.error('Test token error:', error);
+            }
+        });
+
+        // Debug authentication button
+        debugAuthBtn.addEventListener('click', async () => {
+            try {
+                showStatus('🔍 Debugging authentication headers...', 'loading');
+                
+                const response = await fetch('/admin/auth-debug', {
+                    credentials: 'include'
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    showStatus('✅ Auth debug completed - check console and server logs', 'success');
+                    console.log('Auth debug response:', data);
+                } else {
+                    showStatus('❌ Auth debug failed', 'error');
+                }
+            } catch (error) {
+                showStatus(`❌ Auth debug error: ${error.message}`, 'error');
+                console.error('Auth debug error:', error);
+            }
         });
 
         console.log('NGOInfo-Copilot Proposal Generator Test UI loaded');

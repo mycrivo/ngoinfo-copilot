@@ -25,13 +25,33 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS middleware
+# CORS middleware - configured for WordPress frontend and admin UI
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure appropriately for production
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=[
+        "https://ngoinfo.org",  # WordPress frontend
+        "https://www.ngoinfo.org",  # WordPress frontend with www
+        "http://localhost:3000",  # Local development
+        "http://localhost:8000",  # Local API server
+        "https://*.railway.app",  # Railway deployment
+        "*"  # Allow all origins (remove in production if needed)
+    ],
+    allow_credentials=True,  # Enable credentials for session cookies
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"],
+    allow_headers=[
+        "Authorization",
+        "Content-Type",
+        "Accept",
+        "Origin",
+        "X-Requested-With",
+        "X-CSRF-Token",
+        "Cookie",
+        "Set-Cookie"
+    ],
+    expose_headers=[
+        "Set-Cookie",
+        "Authorization"
+    ]
 )
 
 # Include routers

@@ -1,4 +1,4 @@
-from fastapi import HTTPException, status, Depends
+from fastapi import HTTPException, status, Depends, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional, Dict, Any
 from datetime import datetime, timedelta
@@ -13,7 +13,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-security = HTTPBearer()
+# Optional security for Bearer tokens
+security = HTTPBearer(auto_error=False)
 
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -22,6 +23,9 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-super-secret-jwt-key-here-change-in-production")
 ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "1440"))
+
+# Environment check
+IS_DEVELOPMENT = os.getenv("ENVIRONMENT", "development") == "development"
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -82,21 +86,96 @@ async def authenticate_user(db: AsyncSession, email: str, password: str) -> Opti
     return user
 
 
+def debug_auth_headers(request: Request) -> None:
+    """Debug authentication headers and cookies (development only)"""
+    if not IS_DEVELOPMENT:
+        return
+    
+    logger.info("🔍 AUTH DEBUG - Headers received:")
+    auth_header = request.headers.get("authorization")
+    if auth_header:
+        logger.info(f"  Authorization: {auth_header[:20]}...")
+    else:
+        logger.info("  Authorization: None")
+    
+    cookies = request.cookies
+    if cookies:
+        logger.info(f"  Cookies: {list(cookies.keys())}")
+        for key, value in cookies.items():
+            if 'session' in key.lower() or 'token' in key.lower():
+                logger.info(f"    {key}: {value[:20]}...")
+    else:
+        logger.info("  Cookies: None")
+
+
+async def get_current_user_id_flexible(
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    db: AsyncSession = Depends(get_db_session)
+) -> str:
+    """
+    Flexible authentication that supports both Bearer tokens and session cookies
+    """
+    # Debug logging in development
+    debug_auth_headers(request)
+    
+    user_id = None
+    
+    # Try Bearer token first
+    if credentials and credentials.credentials:
+        try:
+            token = credentials.credentials
+            payload = verify_token(token)
+            if payload:
+                user_id = payload.get("sub")
+                if user_id:
+                    logger.info(f"✅ Authenticated via Bearer token: user {user_id}")
+                    return user_id
+        except Exception as e:
+            logger.warning(f"Bearer token validation failed: {str(e)}")
+    
+    # Try session cookie authentication
+    session_token = request.cookies.get("session_token") or request.cookies.get("access_token")
+    if session_token:
+        try:
+            payload = verify_token(session_token)
+            if payload:
+                user_id = payload.get("sub")
+                if user_id:
+                    logger.info(f"✅ Authenticated via session cookie: user {user_id}")
+                    return user_id
+        except Exception as e:
+            logger.warning(f"Session cookie validation failed: {str(e)}")
+    
+    # For admin UI testing, allow a default user in development
+    if IS_DEVELOPMENT and request.url.path.startswith("/admin"):
+        logger.warning("🔧 DEV MODE: Using default admin user for testing")
+        return "admin_user_dev"
+    
+    # No valid authentication found
+    logger.error("❌ No valid authentication found")
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Not authenticated",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
 async def get_current_user_id(
     credentials: HTTPAuthorizationCredentials = Depends(security)
 ) -> str:
     """
-    Extract and validate user ID from JWT token
+    Extract and validate user ID from JWT token (strict authentication)
     """
     try:
-        token = credentials.credentials
-        
-        if not token:
+        if not credentials or not credentials.credentials:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid authentication credentials",
                 headers={"WWW-Authenticate": "Bearer"},
             )
+        
+        token = credentials.credentials
         
         # Verify JWT token
         payload = verify_token(token)
@@ -148,24 +227,41 @@ async def get_current_user(
     return user
 
 
-def get_optional_user_id(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)) -> Optional[str]:
+async def get_optional_user_id(
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
+) -> Optional[str]:
     """
-    Extract user ID from authentication token (optional)
+    Extract user ID from authentication token or session (optional)
     Returns None if no valid token is provided
     """
-    if not credentials:
-        return None
+    debug_auth_headers(request)
     
-    try:
-        # Note: This is a synchronous function, so we can't await here
-        # For optional auth, we'll just validate the token format
-        token = credentials.credentials
-        payload = verify_token(token)
-        if payload is None:
-            return None
-        return payload.get("sub")
-    except Exception:
-        return None
+    # Try Bearer token
+    if credentials and credentials.credentials:
+        try:
+            token = credentials.credentials
+            payload = verify_token(token)
+            if payload:
+                user_id = payload.get("sub")
+                if user_id:
+                    return user_id
+        except Exception:
+            pass
+    
+    # Try session cookie
+    session_token = request.cookies.get("session_token") or request.cookies.get("access_token")
+    if session_token:
+        try:
+            payload = verify_token(session_token)
+            if payload:
+                user_id = payload.get("sub")
+                if user_id:
+                    return user_id
+        except Exception:
+            pass
+    
+    return None
 
 
 # TODO: Add additional auth utilities as needed:
