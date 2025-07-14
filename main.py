@@ -5,7 +5,7 @@ import os
 from db import init_db
 
 # Import route modules
-from routes import proposal_routes, profile, auth_routes
+from routes import proposal_routes, profile, auth_routes, admin_ui
 
 
 @asynccontextmanager
@@ -38,6 +38,7 @@ app.add_middleware(
 app.include_router(auth_routes.router, prefix="/api/auth", tags=["authentication"])
 app.include_router(profile.router, prefix="/api/profile", tags=["profile"])
 app.include_router(proposal_routes.router, prefix="/api/proposals", tags=["proposals"])
+app.include_router(admin_ui.router, prefix="/admin", tags=["admin"])
 
 
 @app.get("/healthcheck")
