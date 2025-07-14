@@ -31,23 +31,28 @@ async def create_test_token(request: Request):
     """
     debug_auth_headers(request)
     
+    environment = os.getenv("ENVIRONMENT", "development").lower()
+    is_development = environment != "production"
+    
     # Only allow in development
-    if os.getenv("ENVIRONMENT", "development") != "development":
+    if not is_development:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Test authentication only available in development mode"
+            detail=f"Test authentication only available in development mode (current: {environment})"
         )
     
     try:
         # Create a test token for admin user
         test_token = create_access_token(data={"sub": "admin_user_test"})
         
-        logger.info("🔧 Created test authentication token for admin UI")
+        logger.info(f"🔧 Created test authentication token for admin UI (env: {environment})")
         
         return JSONResponse(content={
             "access_token": test_token,
             "token_type": "bearer",
             "message": "Test token created successfully",
+            "environment": environment,
+            "is_development": is_development,
             "usage": "Store this token in localStorage.setItem('access_token', 'TOKEN_VALUE')"
         })
         
@@ -66,9 +71,16 @@ async def auth_debug(request: Request):
     """
     debug_auth_headers(request)
     
+    environment = os.getenv("ENVIRONMENT", "development").lower()
+    is_development = environment != "production"
+    
     return JSONResponse(content={
         "message": "Authentication debug completed",
         "check_logs": "Check server logs for authentication details",
+        "environment": environment,
+        "is_development": is_development,
+        "request_path": request.url.path,
         "headers": dict(request.headers),
-        "cookies": dict(request.cookies)
+        "cookies": dict(request.cookies),
+        "fallback_paths": ["/admin", "/api/proposals/generate"] if is_development else []
     }) 

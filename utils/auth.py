@@ -24,8 +24,9 @@ SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-super-secret-jwt-key-here-change-
 ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "1440"))
 
-# Environment check
-IS_DEVELOPMENT = os.getenv("ENVIRONMENT", "development") == "development"
+# Environment check - default to development unless explicitly production
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development").lower()
+IS_DEVELOPMENT = ENVIRONMENT != "production"
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -92,6 +93,10 @@ def debug_auth_headers(request: Request) -> None:
         return
     
     logger.info("🔍 AUTH DEBUG - Headers received:")
+    logger.info(f"  Environment: {ENVIRONMENT}")
+    logger.info(f"  IS_DEVELOPMENT: {IS_DEVELOPMENT}")
+    logger.info(f"  Request Path: {request.url.path}")
+    
     auth_header = request.headers.get("authorization")
     if auth_header:
         logger.info(f"  Authorization: {auth_header[:20]}...")
@@ -118,6 +123,10 @@ async def get_current_user_id_flexible(
     """
     # Debug logging in development
     debug_auth_headers(request)
+    
+    # Development mode debug logging
+    if IS_DEVELOPMENT:
+        logger.info(f"🔧 DEV MODE: Environment={ENVIRONMENT}, Path={request.url.path}")
     
     user_id = None
     
@@ -147,13 +156,21 @@ async def get_current_user_id_flexible(
         except Exception as e:
             logger.warning(f"Session cookie validation failed: {str(e)}")
     
-    # For admin UI testing, allow a default user in development
-    if IS_DEVELOPMENT and request.url.path.startswith("/admin"):
-        logger.warning("🔧 DEV MODE: Using default admin user for testing")
-        return "admin_user_dev"
+    # Development mode fallback for admin UI and API testing
+    if IS_DEVELOPMENT:
+        # Allow fallback for admin UI and proposal generation API
+        admin_paths = ["/admin", "/api/proposals/generate"]
+        current_path = request.url.path
+        
+        if any(current_path.startswith(path) for path in admin_paths):
+            dev_user_id = "admin_user_dev"
+            logger.warning(f"🔧 DEV MODE: Using fallback user '{dev_user_id}' for path '{current_path}'")
+            logger.warning(f"🔧 DEV MODE: Environment={ENVIRONMENT}, IS_DEVELOPMENT={IS_DEVELOPMENT}")
+            return dev_user_id
     
     # No valid authentication found
-    logger.error("❌ No valid authentication found")
+    logger.error(f"❌ No valid authentication found for path: {request.url.path}")
+    logger.error(f"❌ Environment: {ENVIRONMENT}, IS_DEVELOPMENT: {IS_DEVELOPMENT}")
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Not authenticated",
