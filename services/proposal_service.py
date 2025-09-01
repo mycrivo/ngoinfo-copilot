@@ -90,6 +90,85 @@ class ProposalService:
             logger.error(f"Error generating proposal for user {user_id}: {str(e)}")
             raise
     
+    async def generate_custom_proposal(
+        self,
+        user_id: str,
+        custom_brief: str = None,
+        quick_fields: dict = None,
+        custom_instructions: str = None
+    ) -> Proposal:
+        """Generate a proposal from custom brief or quick fields"""
+        try:
+            # Get user profile
+            profile = await self._get_user_profile(user_id)
+            if not profile:
+                raise ValueError("User profile not found. Please create a profile first.")
+            
+            # Prepare prompt based on input type
+            if custom_brief:
+                prompt_context = {
+                    "brief": custom_brief,
+                    "organization": profile.to_dict(),
+                    "custom_instructions": custom_instructions
+                }
+                prompt_type = "custom_brief"
+            elif quick_fields:
+                prompt_context = {
+                    "quick_fields": quick_fields,
+                    "organization": profile.to_dict(),
+                    "custom_instructions": custom_instructions
+                }
+                prompt_type = "quick_fields"
+            else:
+                raise ValueError("Either custom_brief or quick_fields must be provided")
+            
+            # Generate AI response using custom prompt
+            from prompts.proposal_prompt_factory import ProposalPromptFactory
+            from utils.openai_client import OpenAIClient
+            
+            prompt_factory = ProposalPromptFactory()
+            prompt = prompt_factory.build_custom_prompt(prompt_context, prompt_type)
+            
+            openai_client = OpenAIClient()
+            ai_response = await openai_client.generate_custom_proposal(prompt)
+            
+            # Calculate basic scores for custom proposals
+            from utils.scoring import calculate_proposal_scores
+            scores = calculate_proposal_scores(
+                proposal_content=ai_response["content"],
+                profile_data=profile.to_dict(),
+                funding_data=None  # No specific funding opportunity
+            )
+            
+            # Create proposal record
+            proposal = Proposal(
+                user_id=user_id,
+                ngo_profile_id=profile.id,
+                funding_opportunity_id=None,  # Custom proposals have no specific funding opportunity
+                title=ai_response.get("title", "Custom Proposal"),
+                content=ai_response["content"],
+                executive_summary=ai_response.get("executive_summary"),
+                generation_prompt=prompt,
+                donor_template_used=prompt_type,
+                ai_model_used=ai_response.get("model", "gpt-4"),
+                confidence_score=scores.get("confidence_score"),
+                alignment_score=scores.get("alignment_score", 0),  # No specific opportunity to align with
+                completeness_score=scores.get("completeness_score"),
+                funding_opportunity_snapshot=None
+            )
+            
+            self.db_session.add(proposal)
+            await self.db_session.commit()
+            await self.db_session.refresh(proposal)
+            
+            logger.info(f"Custom proposal generated for user {user_id}")
+            return proposal
+            
+        except Exception as e:
+            await self.db_session.rollback()
+            logger.error(f"Error generating custom proposal for user {user_id}: {str(e)}")
+            raise
+    
     async def get_proposal_by_id(self, proposal_id: str, user_id: str) -> Optional[Proposal]:
         """Get proposal by ID (with user access check)"""
         try:

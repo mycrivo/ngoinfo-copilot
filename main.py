@@ -5,7 +5,7 @@ import os
 from db import init_db
 
 # Import route modules
-from routes import proposal_routes, profile, auth_routes, admin_ui
+from routes import proposal_routes, profile, auth_routes, admin_ui, usage_routes
 
 # Import configuration modules
 from utils.logging_config import configure_logging, RequestIDMiddleware
@@ -86,6 +86,7 @@ app.add_middleware(
 app.include_router(auth_routes.router, prefix="/api/auth", tags=["authentication"])
 app.include_router(profile.router, prefix="/api/profile", tags=["profile"])
 app.include_router(proposal_routes.router, prefix="/api/proposals", tags=["proposals"])
+app.include_router(usage_routes.router, prefix="/api/usage", tags=["usage"])
 app.include_router(admin_ui.router, prefix="/admin", tags=["admin"])
 
 
@@ -132,10 +133,124 @@ async def healthcheck():
 async def root():
     """Root endpoint with basic info"""
     return {
-        "message": "NGOInfo-Copilot API",
-        "docs": "/docs",
-        "health": "/healthcheck"
+        "service": "NGOInfo-Copilot",
+        "description": "AI-powered proposal generation service for NGOs",
+        "version": "1.0.0",
+        "status": "operational",
+        "endpoints": {
+            "docs": "/docs",
+            "openapi": "/docs/openapi.json",
+            "health": "/healthcheck",
+            "auth": "/api/auth/*",
+            "profiles": "/api/profile",
+            "proposals": "/api/proposals/*",
+            "usage": "/api/usage/*"
+        }
     }
+
+
+@app.get("/docs/openapi.json")
+async def get_openapi_spec():
+    """Export OpenAPI specification as JSON"""
+    from fastapi.openapi.utils import get_openapi
+    
+    if not app.openapi_schema:
+        app.openapi_schema = get_openapi(
+            title="NGOInfo-Copilot API",
+            version="1.0.0",
+            description="""
+## AI-Powered Proposal Generation for NGOs
+
+This API provides comprehensive proposal generation services for Non-Governmental Organizations (NGOs).
+
+### Key Features
+- 🤖 **AI-Powered Generation**: Advanced proposal creation using GPT-4
+- 🔒 **Authentication**: Secure JWT-based user authentication  
+- 📊 **Usage Tracking**: Monitor API usage and limits
+- ⚡ **Rate Limiting**: Prevent abuse with configurable rate limits
+- 🔄 **Idempotency**: Duplicate request protection with idempotency keys
+- 📄 **Export Options**: PDF and DOCX format exports
+- 🎯 **Smart Matching**: Funding opportunity alignment scoring
+
+### Rate Limits
+- **Generate**: 5 requests per minute (configurable)
+- **Export**: 10 requests per minute (configurable)
+
+### Idempotency
+Use the `Idempotency-Key` header for generate requests to ensure duplicate protection.
+
+### Error Format
+All errors follow a standardized format:
+```json
+{
+  "code": "ERROR_CODE",
+  "message": "Human readable message",
+  "request_id": "uuid",
+  "details": {}
+}
+```
+            """.strip(),
+            routes=app.routes,
+        )
+        
+        # Add custom examples and headers to OpenAPI schema
+        if "paths" in app.openapi_schema:
+            # Add idempotency header to generate endpoint
+            generate_path = "/api/proposals/generate"
+            if generate_path in app.openapi_schema["paths"]:
+                post_schema = app.openapi_schema["paths"][generate_path]["post"]
+                
+                # Add Idempotency-Key header
+                if "parameters" not in post_schema:
+                    post_schema["parameters"] = []
+                
+                post_schema["parameters"].append({
+                    "name": "Idempotency-Key",
+                    "in": "header",
+                    "required": False,
+                    "schema": {"type": "string"},
+                    "description": "Optional idempotency key to prevent duplicate requests"
+                })
+                
+                # Add 422 response example
+                if "responses" not in post_schema:
+                    post_schema["responses"] = {}
+                
+                post_schema["responses"]["422"] = {
+                    "description": "Validation Error",
+                    "content": {
+                        "application/json": {
+                            "example": {
+                                "code": "VALIDATION_ERROR",
+                                "message": "Must provide exactly one of: funding_opportunity_id OR (custom_brief OR quick_fields)",
+                                "request_id": "123e4567-e89b-12d3-a456-426614174000",
+                                "details": {
+                                    "input_validation": "Must provide exactly one of: funding_opportunity_id OR (custom_brief OR quick_fields)"
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                # Add 429 response example
+                post_schema["responses"]["429"] = {
+                    "description": "Rate Limit Exceeded",
+                    "content": {
+                        "application/json": {
+                            "example": {
+                                "code": "RATE_LIMIT_EXCEEDED",
+                                "message": "Rate limit exceeded. Maximum 5 requests per minute for proposal generation.",
+                                "request_id": "123e4567-e89b-12d3-a456-426614174000",
+                                "details": {
+                                    "limit": 5,
+                                    "action": "generate"
+                                }
+                            }
+                        }
+                    }
+                }
+    
+    return app.openapi_schema
 
 
 if __name__ == "__main__":
