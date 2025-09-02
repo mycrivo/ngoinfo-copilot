@@ -1,0 +1,352 @@
+/**
+ * Public styles for NGOInfo Copilot
+ */
+
+/* Usage Widget Styles */
+.ngoinfo-usage-widget {
+	background: #fff;
+	border: 1px solid #ddd;
+	border-radius: 6px;
+	padding: 20px;
+	margin: 20px 0;
+	font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+	max-width: 400px;
+	position: relative;
+}
+
+.ngoinfo-usage-widget .usage-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 15px;
+	border-bottom: 1px solid #f0f0f1;
+	padding-bottom: 10px;
+}
+
+.ngoinfo-usage-widget .usage-header h4 {
+	margin: 0;
+	color: #23282d;
+	font-size: 16px;
+	font-weight: 600;
+}
+
+.ngoinfo-usage-widget .usage-refresh-btn {
+	background: none;
+	border: none;
+	cursor: pointer;
+	padding: 4px;
+	border-radius: 3px;
+	color: #666;
+	transition: color 0.2s ease;
+}
+
+.ngoinfo-usage-widget .usage-refresh-btn:hover {
+	color: #0073aa;
+	background: #f0f0f1;
+}
+
+.ngoinfo-usage-widget .usage-refresh-btn:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+/* Usage Display */
+.ngoinfo-usage-widget .usage-display {
+	display: flex;
+	flex-direction: column;
+	gap: 15px;
+}
+
+.ngoinfo-usage-widget .usage-plan {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+}
+
+.ngoinfo-usage-widget .plan-label {
+	color: #666;
+	font-size: 14px;
+}
+
+.ngoinfo-usage-widget .plan-name {
+	font-weight: 600;
+	color: #0073aa;
+	font-size: 14px;
+}
+
+/* Usage Bar */
+.ngoinfo-usage-widget .usage-bar-container {
+	margin-bottom: 10px;
+}
+
+.ngoinfo-usage-widget .usage-bar {
+	background: #f0f0f1;
+	border-radius: 10px;
+	height: 8px;
+	overflow: hidden;
+	margin-bottom: 8px;
+}
+
+.ngoinfo-usage-widget .usage-fill {
+	height: 100%;
+	border-radius: 10px;
+	transition: width 0.3s ease;
+}
+
+/* Status-based colors */
+.ngoinfo-usage-widget.status-normal .usage-fill {
+	background: #00a32a;
+}
+
+.ngoinfo-usage-widget.status-warning .usage-fill {
+	background: #f56e28;
+}
+
+.ngoinfo-usage-widget.status-limit_reached .usage-fill {
+	background: #d63638;
+}
+
+.ngoinfo-usage-widget .usage-text {
+	font-size: 14px;
+	color: #666;
+	text-align: center;
+}
+
+/* Usage Details */
+.ngoinfo-usage-widget .usage-details {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	font-size: 13px;
+}
+
+.ngoinfo-usage-widget .usage-remaining {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.ngoinfo-usage-widget .remaining-count {
+	font-weight: 600;
+	color: #00a32a;
+}
+
+.ngoinfo-usage-widget .remaining-label {
+	color: #666;
+}
+
+.ngoinfo-usage-widget .limit-reached {
+	color: #d63638;
+	font-weight: 600;
+}
+
+.ngoinfo-usage-widget .usage-reset {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	color: #666;
+}
+
+.ngoinfo-usage-widget .reset-date {
+	font-weight: 500;
+}
+
+/* Warning and Limit Messages */
+.ngoinfo-usage-widget .usage-warning,
+.ngoinfo-usage-widget .usage-limit-reached {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 10px;
+	border-radius: 4px;
+	font-size: 13px;
+	margin-top: 10px;
+}
+
+.ngoinfo-usage-widget .usage-warning {
+	background: #fff3cd;
+	border: 1px solid #ffeaa7;
+	color: #664d03;
+}
+
+.ngoinfo-usage-widget .usage-limit-reached {
+	background: #f8d7da;
+	border: 1px solid #f5c2c7;
+	color: #721c24;
+}
+
+/* Error Display */
+.ngoinfo-usage-widget .usage-error {
+	display: flex;
+	align-items: flex-start;
+	gap: 12px;
+	padding: 15px;
+	background: #f8d7da;
+	border: 1px solid #f5c2c7;
+	border-radius: 4px;
+	color: #721c24;
+}
+
+.ngoinfo-usage-widget .error-icon {
+	flex-shrink: 0;
+	margin-top: 2px;
+}
+
+.ngoinfo-usage-widget .error-content {
+	flex: 1;
+}
+
+.ngoinfo-usage-widget .error-message {
+	margin: 0 0 8px 0;
+	font-size: 14px;
+}
+
+.ngoinfo-usage-widget .error-request-id {
+	margin: 0 0 10px 0;
+	color: #5a1f1f;
+}
+
+.ngoinfo-usage-widget .usage-retry-btn {
+	background: #721c24;
+	color: white;
+	border: none;
+	padding: 6px 12px;
+	border-radius: 3px;
+	cursor: pointer;
+	font-size: 12px;
+	transition: background 0.2s ease;
+}
+
+.ngoinfo-usage-widget .usage-retry-btn:hover {
+	background: #5a1f1f;
+}
+
+/* Login Prompt */
+.ngoinfo-usage-widget.ngoinfo-login-prompt .usage-content {
+	text-align: center;
+	padding: 20px 10px;
+}
+
+.ngoinfo-usage-widget.ngoinfo-login-prompt p {
+	margin: 0 0 15px 0;
+	color: #666;
+	line-height: 1.4;
+}
+
+.ngoinfo-usage-widget .usage-login-button {
+	display: inline-block;
+	background: #0073aa;
+	color: white;
+	text-decoration: none;
+	padding: 10px 20px;
+	border-radius: 4px;
+	font-weight: 500;
+	transition: background 0.2s ease;
+}
+
+.ngoinfo-usage-widget .usage-login-button:hover {
+	background: #005a87;
+	color: white;
+}
+
+/* Loading Overlay */
+.ngoinfo-usage-widget .usage-loading {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: rgba(255, 255, 255, 0.9);
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	border-radius: 6px;
+}
+
+.ngoinfo-usage-widget .loading-spinner {
+	margin-bottom: 10px;
+}
+
+.ngoinfo-usage-widget .usage-loading p {
+	margin: 0;
+	color: #666;
+	font-size: 14px;
+}
+
+/* Compact Theme */
+.ngoinfo-usage-widget.theme-compact {
+	padding: 15px;
+	max-width: 300px;
+}
+
+.ngoinfo-usage-widget.theme-compact .usage-header {
+	margin-bottom: 10px;
+}
+
+.ngoinfo-usage-widget.theme-compact .usage-header h4 {
+	font-size: 14px;
+}
+
+.ngoinfo-usage-widget.theme-compact .usage-display {
+	gap: 10px;
+}
+
+.ngoinfo-usage-widget.theme-compact .usage-details {
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 5px;
+}
+
+/* Minimal Theme */
+.ngoinfo-usage-widget.theme-minimal {
+	border: none;
+	padding: 10px;
+	background: #f9f9f9;
+	max-width: 250px;
+}
+
+.ngoinfo-usage-widget.theme-minimal .usage-header {
+	border-bottom: none;
+	margin-bottom: 10px;
+}
+
+.ngoinfo-usage-widget.theme-minimal .usage-header h4 {
+	font-size: 13px;
+	color: #666;
+}
+
+.ngoinfo-usage-widget.theme-minimal .usage-plan {
+	display: none;
+}
+
+.ngoinfo-usage-widget.theme-minimal .usage-text {
+	font-size: 12px;
+}
+
+/* Animation */
+.spin {
+	animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+	from { transform: rotate(0deg); }
+	to { transform: rotate(360deg); }
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+	.ngoinfo-usage-widget {
+		max-width: 100%;
+		margin: 15px 0;
+		padding: 15px;
+	}
+	
+	.ngoinfo-usage-widget .usage-details {
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 8px;
+	}
+}
+
+

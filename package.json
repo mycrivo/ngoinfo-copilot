@@ -1,0 +1,42 @@
+{
+  "name": "ngoinfo-copilot-wp",
+  "version": "0.1.0",
+  "description": "WordPress plugin for NGOInfo Copilot - AI-powered proposal generation for NGOs",
+  "main": "assets/js/public.js",
+  "scripts": {
+    "build": "echo 'Building assets...' && npm run build:css && npm run build:js",
+    "build:css": "echo 'CSS assets are already built'",
+    "build:js": "echo 'JS assets are already built'",
+    "package": "npm run package:zip",
+    "package:zip": "node scripts/package.js",
+    "lint": "echo 'Running PHPCS...' && composer run lint",
+    "lint:fix": "composer run lint:fix",
+    "test": "echo 'No tests configured yet'",
+    "dev": "echo 'Development mode - watching for changes...'",
+    "clean": "rimraf build dist releases"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mycrivo/ngoinfo-copilot-wp.git"
+  },
+  "keywords": [
+    "wordpress",
+    "plugin",
+    "ngo",
+    "proposal",
+    "ai",
+    "copilot"
+  ],
+  "author": "NGOInfo Copilot Team",
+  "license": "MIT",
+  "devDependencies": {
+    "archiver": "^5.3.1",
+    "rimraf": "^3.0.2"
+  },
+  "engines": {
+    "node": ">=14.0.0",
+    "npm": ">=6.0.0"
+  }
+}
+
+

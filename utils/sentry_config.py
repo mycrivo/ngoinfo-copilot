@@ -81,3 +81,4 @@ def capture_exception(exc: Exception, **kwargs):
             scope.set_extra(key, value)
         
         sentry_sdk.capture_exception(exc)
+

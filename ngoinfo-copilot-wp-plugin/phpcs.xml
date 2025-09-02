@@ -1,0 +1,91 @@
+<?xml version="1.0"?>
+<ruleset name="NGOInfo Copilot WordPress Plugin">
+	<description>Coding standards for NGOInfo Copilot WordPress Plugin</description>
+
+	<!-- Include WordPress Coding Standards -->
+	<rule ref="WordPress">
+		<!-- Exclude specific rules that might be too strict for this project -->
+		<exclude name="WordPress.Files.FileName.InvalidClassFileName" />
+		<exclude name="WordPress.Files.FileName.NotHyphenatedLowercase" />
+		<exclude name="Generic.Commenting.DocComment.MissingShort" />
+		<exclude name="Squiz.Commenting.FileComment.Missing" />
+		<exclude name="Squiz.Commenting.ClassComment.Missing" />
+		<exclude name="Squiz.Commenting.FunctionComment.Missing" />
+		<exclude name="Squiz.Commenting.VariableComment.Missing" />
+	</rule>
+
+	<!-- Include WordPress Extra rules -->
+	<rule ref="WordPress-Extra" />
+
+	<!-- Include WordPress VIP rules (for security) -->
+	<rule ref="WordPress-VIP-Go">
+		<!-- Exclude VIP-specific rules that don't apply -->
+		<exclude name="WordPressVIPMinimum.Files.IncludingFile.UsingCustomConstant" />
+		<exclude name="WordPressVIPMinimum.Functions.RestrictedFunctions.wp_remote_get_wp_remote_get" />
+		<exclude name="WordPressVIPMinimum.Performance.WPQueryParams.PostNotIn" />
+	</rule>
+
+	<!-- Check for PHP cross-version compatibility -->
+	<rule ref="PHPCompatibilityWP" />
+
+	<!-- Set minimum PHP version -->
+	<config name="testVersion" value="7.4-" />
+
+	<!-- What to scan -->
+	<file>.</file>
+
+	<!-- Exclude vendor and node_modules -->
+	<exclude-pattern>*/vendor/*</exclude-pattern>
+	<exclude-pattern>*/node_modules/*</exclude-pattern>
+	<exclude-pattern>*/.git/*</exclude-pattern>
+
+	<!-- Exclude build/release directories -->
+	<exclude-pattern>*/build/*</exclude-pattern>
+	<exclude-pattern>*/dist/*</exclude-pattern>
+	<exclude-pattern>*/releases/*</exclude-pattern>
+
+	<!-- Allow for WordPress naming conventions -->
+	<rule ref="WordPress.NamingConventions.ValidFunctionName">
+		<properties>
+			<property name="minimumSupportedVersion" value="7.4" />
+		</properties>
+	</rule>
+
+	<!-- Set text domain -->
+	<rule ref="WordPress.WP.I18n">
+		<properties>
+			<property name="text_domain" type="array">
+				<element value="ngoinfo-copilot" />
+			</property>
+		</properties>
+	</rule>
+
+	<!-- Enforce short array syntax -->
+	<rule ref="Generic.Arrays.DisallowLongArraySyntax" />
+
+	<!-- Security rules -->
+	<rule ref="WordPress.Security.EscapeOutput" />
+	<rule ref="WordPress.Security.NonceVerification" />
+	<rule ref="WordPress.Security.ValidatedSanitizedInput" />
+	<rule ref="WordPress.Security.PluginMenuSlug" />
+
+	<!-- Performance rules -->
+	<rule ref="WordPress.DB.DirectDatabaseQuery" />
+	<rule ref="WordPress.DB.SlowDBQuery" />
+
+	<!-- Custom rules for this project -->
+	<rule ref="PSR2.Methods.FunctionCallSignature">
+		<properties>
+			<property name="allowMultipleArguments" value="false" />
+		</properties>
+	</rule>
+
+	<!-- Allow longer lines for readability in some cases -->
+	<rule ref="Generic.Files.LineLength">
+		<properties>
+			<property name="lineLimit" value="120" />
+			<property name="absoluteLineLimit" value="150" />
+		</properties>
+	</rule>
+</ruleset>
+

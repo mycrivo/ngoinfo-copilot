@@ -7,23 +7,23 @@ from db import Base
 
 class UsageLedger(Base):
     """Usage tracking for API limits and billing"""
-    
+
     __tablename__ = "usage_ledger"
-    
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(String(255), nullable=False, index=True)
-    
+
     # Usage tracking
     action_type = Column(String(50), nullable=False)  # 'generate', 'export', etc.
     count = Column(Integer, default=1, nullable=False)
-    
+
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    
+
     # Plan information (cached for quick lookup)
     plan_name = Column(String(100), default="free", nullable=False)
     monthly_limit = Column(Integer, default=10, nullable=False)
-    
+
     def to_dict(self):
         """Convert model to dictionary"""
         return {
@@ -35,13 +35,13 @@ class UsageLedger(Base):
             "plan_name": self.plan_name,
             "monthly_limit": self.monthly_limit,
         }
-    
+
     @staticmethod
     def get_current_month_start():
         """Get start of current month in UTC"""
         now = datetime.now(timezone.utc)
         return now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    
+
     @staticmethod
     def get_next_month_start():
         """Get start of next month in UTC"""

@@ -3,36 +3,33 @@ from sqlalchemy.orm import DeclarativeBase
 import os
 from typing import AsyncGenerator
 from dotenv import load_dotenv
+from utils.db_config import get_database_config
+import logging
 
 # Load environment variables from .env file
 load_dotenv()
 
+logger = logging.getLogger(__name__)
+
 
 class Base(DeclarativeBase):
     """Base class for all database models"""
+
     pass
 
 
-# Database connection
-DATABASE_URL = os.getenv("DATABASE_URL")
-if not DATABASE_URL:
-    raise ValueError(
-        "DATABASE_URL environment variable is required. "
-        "Create a .env file with: DATABASE_URL=postgresql+asyncpg://user:pass@host:port/dbname"
-    )
+# Get database configuration with robust URL resolution
+try:
+    db_config = get_database_config()
+    DATABASE_URL = db_config["url"]
+    logger.info("Database configuration loaded successfully")
+except Exception as e:
+    logger.error(f"Failed to load database configuration: {e}")
+    raise
 
-# Convert postgres:// to postgresql+asyncpg:// if needed
-if DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+asyncpg://", 1)
-elif DATABASE_URL.startswith("postgresql://"):
-    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
-
-# Create async engine
+# Create async engine with enhanced configuration
 engine = create_async_engine(
-    DATABASE_URL,
-    echo=False,  # Set to True for SQL logging in development
-    pool_size=20,
-    max_overflow=0,
+    DATABASE_URL, **{k: v for k, v in db_config.items() if k != "url"}
 )
 
 # Create async session factory
@@ -60,6 +57,6 @@ async def init_db():
     async with engine.begin() as conn:
         # Import all models to ensure they're registered
         from models import ngo_profiles, proposals, funding_opportunities, users
-        
+
         # Create tables (only creates if they don't exist)
-        await conn.run_sync(Base.metadata.create_all) 
+        await conn.run_sync(Base.metadata.create_all)

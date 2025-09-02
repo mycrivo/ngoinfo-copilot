@@ -1,6 +1,7 @@
 """
 Structured logging configuration with request context
 """
+
 import os
 import sys
 import uuid
@@ -18,27 +19,27 @@ request_id_ctx_var: ContextVar[str] = ContextVar("request_id", default="")
 
 class RequestIDMiddleware(BaseHTTPMiddleware):
     """Middleware to generate and inject request IDs"""
-    
+
     async def dispatch(self, request: Request, call_next):
         # Generate request ID
         request_id = str(uuid.uuid4())
         request_id_ctx_var.set(request_id)
-        
+
         # Add to request state for easy access
         request.state.request_id = request_id
-        
+
         # Track request timing
         start_time = time.time()
-        
+
         # Process request
         response = await call_next(request)
-        
+
         # Calculate latency
         latency_ms = round((time.time() - start_time) * 1000, 2)
-        
+
         # Add request ID to response headers
         response.headers["X-Request-ID"] = request_id
-        
+
         # Log request completion
         logger = structlog.get_logger()
         logger.info(
@@ -49,7 +50,7 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
             latency_ms=latency_ms,
             user_agent=request.headers.get("user-agent", ""),
         )
-        
+
         return response
 
 
@@ -64,7 +65,7 @@ def add_request_id(logger, method_name, event_dict):
 def configure_logging():
     """Configure structured logging with JSON output"""
     log_level = os.getenv("LOG_LEVEL", "INFO").upper()
-    
+
     # Configure structlog
     structlog.configure(
         processors=[
@@ -77,16 +78,17 @@ def configure_logging():
             structlog.processors.StackInfoRenderer(),
             structlog.processors.format_exc_info,
             structlog.processors.UnicodeDecoder(),
-            structlog.processors.JSONRenderer()
+            structlog.processors.JSONRenderer(),
         ],
         context_class=dict,
         logger_factory=structlog.stdlib.LoggerFactory(),
         wrapper_class=structlog.stdlib.BoundLogger,
         cache_logger_on_first_use=True,
     )
-    
+
     # Configure standard library logging
     import logging
+
     logging.basicConfig(
         format="%(message)s",
         stream=sys.stdout,

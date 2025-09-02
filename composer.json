@@ -1,0 +1,40 @@
+{
+	"name": "ngoinfo/copilot-wp",
+	"description": "WordPress plugin for NGOInfo Copilot - AI-powered proposal generation for NGOs",
+	"type": "wordpress-plugin",
+	"license": "MIT",
+	"authors": [
+		{
+			"name": "NGOInfo Copilot Team",
+			"email": "support@ngoinfo.org"
+		}
+	],
+	"require": {
+		"php": ">=7.4"
+	},
+	"require-dev": {
+		"dealerdirect/phpcodesniffer-composer-installer": "^1.0",
+		"wp-coding-standards/wpcs": "^3.0",
+		"squizlabs/php_codesniffer": "^3.7"
+	},
+	"scripts": {
+		"lint": "phpcs",
+		"lint:fix": "phpcbf",
+		"lint:report": "phpcs --report=summary",
+		"build": [
+			"@lint:report",
+			"npm run build"
+		],
+		"package": [
+			"@build",
+			"npm run package"
+		]
+	},
+	"config": {
+		"allow-plugins": {
+			"dealerdirect/phpcodesniffer-composer-installer": true
+		}
+	}
+}
+
+

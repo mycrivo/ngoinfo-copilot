@@ -11,9 +11,9 @@ from .idempotency import IdempotencyRecord
 
 __all__ = [
     "NGOProfile",
-    "Proposal", 
+    "Proposal",
     "FundingOpportunity",
     "User",
     "UsageLedger",
-    "IdempotencyRecord"
-] 
+    "IdempotencyRecord",
+]

@@ -1,186 +1,271 @@
-# NGOInfo-Copilot 🤖
+# NGOInfo Copilot FastAPI Backend
 
-AI-powered proposal generation service for NGOs, enabling automated creation of high-quality grant proposals tailored to specific funding opportunities.
+A FastAPI-based backend service that provides AI-powered proposal generation services for NGOs. This service integrates with the NGOInfo Copilot WordPress plugin to deliver comprehensive proposal generation capabilities.
 
-## 🚀 Features
+## Features
 
-- **🤖 AI-Powered Proposal Generation**: Uses OpenAI GPT-4 to generate comprehensive, professional grant proposals
-- **👤 User Authentication**: JWT-based authentication with secure user management
-- **📄 Document Export**: Export proposals to DOCX and PDF formats
-- **🎯 Donor-Specific Templates**: Tailored proposal templates for major donors (Gates Foundation, Ford Foundation, etc.)
-- **📊 Quality Scoring**: Multi-dimensional scoring system for proposal quality assessment
-- **🔄 Version Control**: Track proposal edits and maintain version history
-- **⭐ Rating System**: User feedback and rating system for generated proposals
-- **📱 RESTful API**: Complete API with FastAPI and automatic documentation
+- **🤖 AI-Powered Generation**: Advanced proposal creation using GPT-4
+- **🔒 Authentication**: Secure JWT-based user authentication  
+- **📊 Usage Tracking**: Monitor API usage and limits
+- **⚡ Rate Limiting**: Prevent abuse with configurable rate limits
+- **🔄 Idempotency**: Duplicate request protection with idempotency keys
+- **📄 Export Options**: PDF and DOCX format exports
+- **🎯 Smart Matching**: Funding opportunity alignment scoring
+- **💚 Health Monitoring**: Robust health checks with database connectivity
+- **🔧 Database Resilience**: Multiple environment variable support with SSL enforcement
 
-## 🏗️ Tech Stack
+## Requirements
 
-- **Backend**: FastAPI, Python 3.11
-- **Database**: PostgreSQL with AsyncPG
-- **AI**: OpenAI GPT-4 API
-- **Authentication**: JWT with bcrypt password hashing
-- **Document Generation**: python-docx, fpdf2
-- **Deployment**: Railway, Docker
-- **Testing**: pytest, pytest-asyncio
+- Python 3.8 or higher
+- PostgreSQL 12 or higher
+- Access to OpenAI API
+- SSL certificate for production use
 
-## 📋 API Endpoints
+## Environment Variables
+
+### Required Database Configuration
+
+The application supports multiple database URL environment variables with fallback priority:
+
+1. `DATABASE_URL` (highest priority)
+2. `COPILOT_DATABASE_URL`
+3. `POSTGRES_URL`
+4. `DATABASE_CONNECTION_STRING` (lowest priority)
+
+**Database URL Rules:**
+- Must be a valid PostgreSQL connection string
+- If URL lacks a driver, automatically coerced to `postgresql+psycopg2://`
+- If URL lacks `sslmode`, automatically appends `?sslmode=require`
+- Supports both `postgresql+asyncpg://` (for async operations) and `postgresql+psycopg2://` (for sync operations)
+
+**Railway Deployment Note:** Set the `DATABASE_URL` on the app service; ensure it includes `sslmode=require`.
+
+### Other Required Variables
+
+- `OPENAI_API_KEY`: Your OpenAI API key
+- `JWT_SECRET_KEY`: Secret key for JWT token signing
+- `CORS_ALLOWED_ORIGINS`: Comma-separated list of allowed origins (optional, defaults to ngoinfo.org)
+
+### Optional Variables
+
+- `APP_NAME`: Application name (defaults to "NGOInfo-Copilot")
+- `ENV`: Environment name (defaults to "development")
+- `SENTRY_DSN`: Sentry error tracking (optional)
+
+## Installation
+
+1. Clone the repository
+2. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+3. Set up environment variables (see above)
+4. Run database migrations:
+   ```bash
+   python -m alembic upgrade head
+   ```
+5. Start the application:
+   ```bash
+   python main.py
+   ```
+
+## Database Setup
+
+### Automatic Migration (Recommended)
+
+The application includes a startup migration script that runs automatically:
+
+```bash
+python scripts/run_migrations.py
+```
+
+This script runs Alembic migrations but doesn't block the application startup if migrations fail.
+
+### Manual Migration
+
+For manual control over migrations:
+
+```bash
+# Create a new migration
+python -m alembic revision --autogenerate -m "Description"
+
+# Apply migrations
+python -m alembic upgrade head
+
+# Check current migration status
+python -m alembic current
+```
+
+## Health Check
+
+The application provides a robust health check endpoint at `/healthcheck` that:
+
+- Tests database connectivity with a fresh connection
+- Returns detailed status information
+- Includes error details for debugging
+- Reports JSON response with the following structure:
+
+```json
+{
+  "status": "ok|degraded",
+  "service": "NGOInfo-Copilot",
+  "version": "1.0.0",
+  "timestamp": "2024-01-01T12:00:00.000Z",
+  "db": "up|down",
+  "db_error": "Error details (if applicable)"
+}
+```
+
+**Status Codes:**
+- `200 OK`: Service healthy, database up
+- `503 Service Unavailable`: Service degraded, database down
+
+## API Endpoints
+
+### Core Endpoints
+- `GET /healthcheck` - System health verification
+- `GET /docs` - Interactive API documentation
+- `GET /` - Root endpoint with service information
 
 ### Authentication
-- `POST /api/auth/register` - User registration
 - `POST /api/auth/login` - User login
-- `GET /api/auth/me` - Get current user
-- `POST /api/auth/refresh` - Refresh token
+- `POST /api/auth/refresh` - Token refresh
 
-### Profile Management
-- `GET /api/profile/` - Get NGO profile
-- `POST /api/profile/` - Create/update NGO profile
+### Profiles
+- `GET /api/profile` - Get user profile
+- `PUT /api/profile` - Update user profile
 
-### Proposal Management
-- `POST /api/proposals/generate` - Generate AI proposal
-- `GET /api/proposals/` - List user proposals
-- `GET /api/proposals/{id}` - Get specific proposal
+### Proposals
+- `POST /api/proposals/generate` - Generate new proposal
+- `GET /api/proposals/{id}` - Get proposal details
 - `PUT /api/proposals/{id}` - Update proposal
-- `POST /api/proposals/{id}/rate` - Rate proposal
-- `DELETE /api/proposals/{id}/archive` - Archive proposal
-- `GET /api/proposals/{id}/export/{format}` - Export proposal (PDF/DOCX)
+- `DELETE /api/proposals/{id}` - Delete proposal
 
-### Health & Documentation
-- `GET /healthcheck` - Health check
-- `GET /docs` - API documentation
+### Usage
+- `GET /api/usage/summary` - Get usage statistics
 
-## 🛠️ Installation & Development
+## Development
 
-### Prerequisites
-- Python 3.11+
-- PostgreSQL database
-- OpenAI API key
+### Running Tests
 
-### Environment Variables
 ```bash
-DATABASE_URL=postgresql+asyncpg://user:pass@host:port/dbname
-OPENAI_API_KEY=your-openai-api-key
-JWT_SECRET_KEY=your-secret-key
-JWT_ALGORITHM=HS256
-JWT_ACCESS_TOKEN_EXPIRE_MINUTES=1440
-ENVIRONMENT=development
+# Run all tests
+pytest
+
+# Run specific test file
+pytest tests/test_db_config.py
+
+# Run with coverage
+pytest --cov=.
+
+# Run only unit tests
+pytest -m unit
 ```
 
-### Local Development
+### Code Formatting
+
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/ngoinfo-copilot.git
-cd ngoinfo-copilot
+# Format code with black
+black .
 
-# Install dependencies
-pip install -r requirements.txt
+# Check code style with flake8
+flake8 .
 
-# Set up environment variables
-cp .env.example .env  # Edit with your values
-
-# Run the application
-uvicorn main:app --reload
+# Type checking with mypy
+mypy .
 ```
 
-## 🚀 Deployment
+### Database Configuration Testing
+
+The application includes comprehensive tests for database URL resolution:
+
+```bash
+# Test database URL resolver
+pytest tests/test_db_config.py -v
+
+# Test healthcheck endpoint
+pytest tests/test_healthcheck.py -v
+```
+
+## Deployment
 
 ### Railway Deployment
 
-1. **Push to GitHub**
-   ```bash
-   git push origin main
-   ```
-
-2. **Create Railway Project**
-   - Go to [railway.app/new](https://railway.app/new)
-   - Connect to your GitHub repository
-   - Add PostgreSQL plugin
-   - Set environment variables in Railway dashboard
-
-3. **Environment Variables to Set**
-   - `DATABASE_URL` (from PostgreSQL plugin)
-   - `OPENAI_API_KEY`
-   - `JWT_SECRET_KEY`
-   - `ENVIRONMENT=production`
+1. Connect your GitHub repository to Railway
+2. Set the required environment variables in Railway dashboard
+3. Ensure `DATABASE_URL` includes `sslmode=require`
+4. Deploy automatically on push to main branch
 
 ### Docker Deployment
+
 ```bash
-# Build image
+# Build the image
 docker build -t ngoinfo-copilot .
 
-# Run container
-docker run -p 8000:8000 --env-file .env ngoinfo-copilot
+# Run the container
+docker run -p 8000:8000 \
+  -e DATABASE_URL="postgresql://user:pass@host:5432/db?sslmode=require" \
+  -e OPENAI_API_KEY="your-key" \
+  -e JWT_SECRET_KEY="your-secret" \
+  ngoinfo-copilot
 ```
 
-## 📊 Database Schema
+## Monitoring
 
-### Core Models
-- **Users**: Authentication and user management
-- **NGO Profiles**: Organization information and capabilities
-- **Proposals**: Generated proposals with metadata
-- **Funding Opportunities**: External funding data (from ReqAgent)
+### Health Check Monitoring
 
-## 🤖 AI Prompt System
+Monitor the `/healthcheck` endpoint to ensure service health:
 
-### Dynamic Prompt Generation
-- **Organization Profile Formatting**: Structured NGO data for AI context
-- **Funding Opportunity Analysis**: Donor requirements and priorities
-- **Donor-Specific Templates**: Customized guidelines for major funders
-- **Quality Scoring**: Multi-factor assessment of generated content
+```bash
+# Check health status
+curl https://your-app.railway.app/healthcheck
 
-### Supported Donors
-- Gates Foundation
-- Ford Foundation
-- Open Society Foundations
-- USAID
-- European Union
-- World Bank
-- United Nations
-- Default templates for other donors
+# Expected response for healthy service:
+{
+  "status": "ok",
+  "service": "NGOInfo-Copilot",
+  "version": "1.0.0",
+  "timestamp": "2024-01-01T12:00:00.000Z",
+  "db": "up"
+}
+```
 
-## 📈 Quality Metrics
+### Logs
 
-### Proposal Scoring
-- **Confidence Score**: Content quality and structure assessment
-- **Alignment Score**: Match with funding opportunity requirements
-- **Completeness Score**: Presence of key proposal sections
+The application provides detailed logging for:
+- Database connection issues
+- Health check failures
+- Environment variable resolution
+- Migration status
 
-### Profile Scoring
-- **Completeness**: Organization information coverage (0-100%)
-- **Quality Indicators**: Mission clarity, project history, capacity demonstration
+## Troubleshooting
 
-## 🔒 Security Features
+### Database Connection Issues
 
-- **JWT Authentication**: Secure token-based authentication
-- **Password Hashing**: bcrypt with salt for secure password storage
-- **Environment Variables**: Sensitive data protection
-- **Input Validation**: Pydantic schemas for request validation
-- **SQL Injection Protection**: SQLAlchemy ORM with parameterized queries
+1. **Check Environment Variables**: Ensure one of the supported database URL variables is set
+2. **Verify SSL Mode**: Ensure `sslmode=require` is in your database URL
+3. **Check Network**: Verify database host is accessible from your deployment environment
+4. **Review Logs**: Check application logs for specific error messages
 
-## 📚 Documentation
+### Health Check Failures
 
-- **API Documentation**: Available at `/docs` when running
-- **Health Monitoring**: `/healthcheck` endpoint for system status
-- **Deployment Guide**: See `DEPLOYMENT.md` for detailed instructions
+1. **Database Down**: Check database service status
+2. **Connection Timeout**: Verify network connectivity and firewall settings
+3. **SSL Issues**: Ensure SSL certificates are valid and properly configured
+4. **Pool Exhaustion**: Check connection pool settings and database load
 
-## 🤝 Contributing
+## Security
 
-1. Fork the repository
-2. Create feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit changes (`git commit -m 'Add amazing feature'`)
-4. Push to branch (`git push origin feature/amazing-feature`)
-5. Open Pull Request
+- All database connections use SSL encryption
+- JWT tokens are signed with secure keys
+- CORS is properly configured for production domains
+- Input validation and sanitization on all endpoints
+- Rate limiting prevents abuse
 
-## 📄 License
+## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+MIT License - see [LICENSE](LICENSE) for details.
 
-## 🆘 Support
+## Contributing
 
-For support and questions:
-- Create an issue on GitHub
-- Check the API documentation at `/docs`
-- Review the deployment guide in `DEPLOYMENT.md`
-
----
-
-**Built with ❤️ for NGOs worldwide** 
+This service is part of the NGOInfo Copilot project. For development coordination, please coordinate with the main project maintainers.

@@ -4,6 +4,11 @@ from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 
 from alembic import context
+import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -38,7 +43,16 @@ def run_migrations_offline() -> None:
     script output.
 
     """
-    url = config.get_main_option("sqlalchemy.url")
+    # Use the same database URL resolver as the main app
+    try:
+        from utils.db_config import resolve_database_url
+
+        url = resolve_database_url()
+    except Exception as e:
+        print(f"Failed to resolve database URL: {e}")
+        # Fallback to config file
+        url = config.get_main_option("sqlalchemy.url")
+
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -57,6 +71,17 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
+    # Use the same database URL resolver as the main app
+    try:
+        from utils.db_config import resolve_database_url
+
+        url = resolve_database_url()
+        # Override the URL in the config
+        config.set_main_option("sqlalchemy.url", url)
+    except Exception as e:
+        print(f"Failed to resolve database URL: {e}")
+        # Continue with config file URL
+
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
@@ -64,9 +89,7 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        context.configure(
-            connection=connection, target_metadata=target_metadata
-        )
+        context.configure(connection=connection, target_metadata=target_metadata)
 
         with context.begin_transaction():
             context.run_migrations()

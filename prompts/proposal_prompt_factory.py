@@ -4,15 +4,17 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-async def build_proposal_prompt(profile: Dict[str, Any], funding: Dict[str, Any]) -> str:
+async def build_proposal_prompt(
+    profile: Dict[str, Any], funding: Dict[str, Any]
+) -> str:
     """
     Generate the full OpenAI input prompt text for proposal generation.
-    
+
     Args:
         profile: Structured dict from NGOProfileManager.structure_for_prompt(user_id)
-        funding: Dict with keys: title, donor, summary, objectives, eligibility, 
+        funding: Dict with keys: title, donor, summary, objectives, eligibility,
                 proposal_template_skeleton (optional)
-    
+
     Returns:
         str: The final prompt string to be passed to OpenAI's GPT endpoint
     """
@@ -22,9 +24,11 @@ async def build_proposal_prompt(profile: Dict[str, Any], funding: Dict[str, Any]
         funding_donor = funding.get("donor", "Unknown Donor")
         funding_summary = funding.get("summary", "No summary provided")
         funding_objectives = funding.get("objectives", "No objectives specified")
-        funding_eligibility = funding.get("eligibility", "No eligibility criteria specified")
+        funding_eligibility = funding.get(
+            "eligibility", "No eligibility criteria specified"
+        )
         proposal_template_skeleton = funding.get("proposal_template_skeleton")
-        
+
         # Extract profile information with defaults
         org_name = profile.get("org_name", "Organization")
         mission = profile.get("mission", "Mission not provided")
@@ -32,7 +36,7 @@ async def build_proposal_prompt(profile: Dict[str, Any], funding: Dict[str, Any]
         countries_text = profile.get("countries_text", "Not specified")
         past_projects = profile.get("past_projects", "No past projects listed")
         staffing = profile.get("staffing", "Staffing information not provided")
-        
+
         # Check if custom proposal template skeleton exists
         if proposal_template_skeleton:
             # Use template with proposal_template_skeleton
@@ -68,7 +72,7 @@ Follow this predefined section structure provided by NGOInfo's AI system:
 - Total length should be around 1000–1200 words.
 
 Generate the full proposal, one section at a time, using only the section heading and the corresponding content."""
-        
+
         else:
             # Use fallback template without proposal_template_skeleton
             prompt = f"""You are a professional grant writer supporting NGOs in creating persuasive, funder-ready proposals.
@@ -112,11 +116,13 @@ Use the following ordered sections:
 - Total length should be approx. 1000–1200 words.
 
 Generate the full proposal now, one section after another, based on the provided structure."""
-        
-        logger.debug(f"Generated proposal prompt for {org_name} targeting {funding_donor}")
+
+        logger.debug(
+            f"Generated proposal prompt for {org_name} targeting {funding_donor}"
+        )
         return prompt.strip()
-        
+
     except Exception as e:
         logger.error(f"Error building proposal prompt: {str(e)}")
         # Return a basic fallback prompt in case of error
-        return """You are a professional grant writer. Please generate a grant proposal based on the provided NGO profile and funding opportunity information. Create a comprehensive proposal with sections for executive summary, organization background, problem statement, objectives, methodology, expected results, sustainability, budget overview, monitoring and evaluation, and closing statement.""" 
+        return """You are a professional grant writer. Please generate a grant proposal based on the provided NGO profile and funding opportunity information. Create a comprehensive proposal with sections for executive summary, organization background, problem statement, objectives, methodology, expected results, sustainability, budget overview, monitoring and evaluation, and closing statement."""

@@ -14,7 +14,10 @@ router = APIRouter()
 
 class ProfileCreateRequest(BaseModel):
     """Schema for creating/updating NGO profile"""
-    org_name: str = Field(..., min_length=1, max_length=500, description="Organization name")
+
+    org_name: str = Field(
+        ..., min_length=1, max_length=500, description="Organization name"
+    )
     mission: str = Field(..., min_length=1, description="Mission statement")
     sectors: List[str] = Field(..., description="Focus sectors/areas")
     countries: List[str] = Field(..., description="Countries of operation")
@@ -24,6 +27,7 @@ class ProfileCreateRequest(BaseModel):
 
 class ProfileResponse(BaseModel):
     """Schema for profile response"""
+
     user_id: int
     org_name: str
     mission: str
@@ -37,11 +41,14 @@ class ProfileResponse(BaseModel):
 
 class ProfileCreateResponse(BaseModel):
     """Schema for profile creation response"""
+
     success: bool
     copilot_confidence_score: int
 
 
-async def get_profile_manager(db: AsyncSession = Depends(get_db_session)) -> NGOProfileManager:
+async def get_profile_manager(
+    db: AsyncSession = Depends(get_db_session),
+) -> NGOProfileManager:
     """Dependency to get NGOProfileManager instance"""
     return NGOProfileManager(db)
 
@@ -49,29 +56,33 @@ async def get_profile_manager(db: AsyncSession = Depends(get_db_session)) -> NGO
 @router.get("/", response_model=Optional[ProfileResponse])
 async def get_profile(
     profile_manager: NGOProfileManager = Depends(get_profile_manager),
-    current_user_id: str = Depends(get_current_user_id)
+    current_user_id: str = Depends(get_current_user_id),
 ):
     """
     Get NGO profile for current user.
-    
+
     Returns profile data with confidence score and readiness status.
     """
     try:
         # Convert user_id from string to int for the manager
-        user_id = int(current_user_id.replace("user_", "")) if current_user_id.startswith("user_") else int(current_user_id)
-        
+        user_id = (
+            int(current_user_id.replace("user_", ""))
+            if current_user_id.startswith("user_")
+            else int(current_user_id)
+        )
+
         # Get profile data
         profile_data = await profile_manager.get_profile(user_id)
-        
+
         if not profile_data:
             return None
-        
+
         # Get confidence score
         confidence_score = await profile_manager.score_profile(user_id)
-        
+
         # Determine if profile is ready (score >= 60)
         profile_ready = confidence_score >= 60
-        
+
         response = ProfileResponse(
             user_id=profile_data["user_id"],
             org_name=profile_data["org_name"],
@@ -81,23 +92,24 @@ async def get_profile(
             past_projects=profile_data["past_projects"],
             staffing=profile_data["staffing"],
             copilot_confidence_score=confidence_score,
-            profile_ready=profile_ready
+            profile_ready=profile_ready,
         )
-        
-        logger.info(f"Retrieved profile for user {user_id} with score {confidence_score}")
+
+        logger.info(
+            f"Retrieved profile for user {user_id} with score {confidence_score}"
+        )
         return response
-        
+
     except ValueError as e:
         logger.warning(f"Invalid user ID format: {current_user_id}")
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid user ID format"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid user ID format"
         )
     except Exception as e:
         logger.error(f"Error retrieving profile: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error"
+            detail="Internal server error",
         )
 
 
@@ -105,17 +117,21 @@ async def get_profile(
 async def create_or_update_profile(
     profile_data: ProfileCreateRequest,
     profile_manager: NGOProfileManager = Depends(get_profile_manager),
-    current_user_id: str = Depends(get_current_user_id)
+    current_user_id: str = Depends(get_current_user_id),
 ):
     """
     Create or update NGO profile for current user.
-    
+
     Accepts profile data and returns success status with confidence score.
     """
     try:
         # Convert user_id from string to int for the manager
-        user_id = int(current_user_id.replace("user_", "")) if current_user_id.startswith("user_") else int(current_user_id)
-        
+        user_id = (
+            int(current_user_id.replace("user_", ""))
+            if current_user_id.startswith("user_")
+            else int(current_user_id)
+        )
+
         # Convert Pydantic model to dict for the manager
         data = {
             "org_name": profile_data.org_name,
@@ -123,33 +139,33 @@ async def create_or_update_profile(
             "sectors": profile_data.sectors,
             "countries": profile_data.countries,
             "past_projects": profile_data.past_projects,
-            "staffing": profile_data.staffing
+            "staffing": profile_data.staffing,
         }
-        
+
         # Create or update profile
         success = await profile_manager.create_or_update_profile(user_id, data)
-        
+
         if not success:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to create or update profile"
+                detail="Failed to create or update profile",
             )
-        
+
         # Get updated confidence score
         confidence_score = await profile_manager.score_profile(user_id)
-        
-        logger.info(f"Created/updated profile for user {user_id} with score {confidence_score}")
-        
-        return ProfileCreateResponse(
-            success=True,
-            copilot_confidence_score=confidence_score
+
+        logger.info(
+            f"Created/updated profile for user {user_id} with score {confidence_score}"
         )
-        
+
+        return ProfileCreateResponse(
+            success=True, copilot_confidence_score=confidence_score
+        )
+
     except ValueError as e:
         logger.warning(f"Invalid user ID format: {current_user_id}")
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid user ID format"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid user ID format"
         )
     except HTTPException:
         raise
@@ -157,5 +173,5 @@ async def create_or_update_profile(
         logger.error(f"Error creating/updating profile: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error"
-        ) 
+            detail="Internal server error",
+        )

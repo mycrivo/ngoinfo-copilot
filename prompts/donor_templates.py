@@ -6,7 +6,7 @@ logger = logging.getLogger(__name__)
 
 class DonorTemplates:
     """Donor-specific templates and guidelines for proposal generation"""
-    
+
     def __init__(self):
         self.templates = {
             "gates_foundation": self._gates_foundation_template(),
@@ -16,32 +16,32 @@ class DonorTemplates:
             "european_union": self._eu_template(),
             "world_bank": self._world_bank_template(),
             "united_nations": self._un_template(),
-            "default": self._default_template()
+            "default": self._default_template(),
         }
-    
+
     def get_template(self, donor_organization: Optional[str]) -> str:
         """
         Get donor-specific template
-        
+
         Args:
             donor_organization: Name of the donor organization
-            
+
         Returns:
             str: Donor-specific template or default template
         """
         if not donor_organization:
             return self.templates["default"]
-        
+
         # Normalize donor name for lookup
         donor_key = self._normalize_donor_name(donor_organization)
-        
+
         # Return specific template or default
         return self.templates.get(donor_key, self.templates["default"])
-    
+
     def _normalize_donor_name(self, donor_name: str) -> str:
         """Normalize donor name for template lookup"""
         normalized = donor_name.lower().replace(" ", "_").replace("-", "_")
-        
+
         # Map common variations
         if "gates" in normalized:
             return "gates_foundation"
@@ -57,9 +57,9 @@ class DonorTemplates:
             return "world_bank"
         elif "united_nations" in normalized or "un_" in normalized:
             return "united_nations"
-        
+
         return "default"
-    
+
     def _gates_foundation_template(self) -> str:
         """Gates Foundation specific guidelines"""
         return """
@@ -75,7 +75,7 @@ GATES FOUNDATION SPECIFIC GUIDELINES:
 - Emphasize collaboration and partnerships
 - Focus on underserved populations and equity
 """
-    
+
     def _ford_foundation_template(self) -> str:
         """Ford Foundation specific guidelines"""
         return """
@@ -91,7 +91,7 @@ FORD FOUNDATION SPECIFIC GUIDELINES:
 - Include diverse perspectives and voices
 - Focus on reducing inequality
 """
-    
+
     def _open_society_template(self) -> str:
         """Open Society Foundations specific guidelines"""
         return """
@@ -107,7 +107,7 @@ OPEN SOCIETY FOUNDATIONS SPECIFIC GUIDELINES:
 - Focus on protecting vulnerable populations
 - Include capacity building for civil society
 """
-    
+
     def _usaid_template(self) -> str:
         """USAID specific guidelines"""
         return """
@@ -123,7 +123,7 @@ USAID SPECIFIC GUIDELINES:
 - Include environmental compliance considerations
 - Focus on building local capacity and systems
 """
-    
+
     def _eu_template(self) -> str:
         """European Union specific guidelines"""
         return """
@@ -139,7 +139,7 @@ EUROPEAN UNION SPECIFIC GUIDELINES:
 - Focus on sustainable development goals
 - Include innovation and knowledge sharing
 """
-    
+
     def _world_bank_template(self) -> str:
         """World Bank specific guidelines"""
         return """
@@ -155,7 +155,7 @@ WORLD BANK SPECIFIC GUIDELINES:
 - Focus on scalability and replicability
 - Demonstrate fiscal sustainability
 """
-    
+
     def _un_template(self) -> str:
         """United Nations specific guidelines"""
         return """
@@ -171,7 +171,7 @@ UNITED NATIONS SPECIFIC GUIDELINES:
 - Focus on capacity building and institution strengthening
 - Demonstrate coordination with UN country teams
 """
-    
+
     def _default_template(self) -> str:
         """Default template for unknown donors"""
         return """
@@ -189,16 +189,16 @@ GENERAL BEST PRACTICES:
 - Focus on innovation and best practices
 - Include clear communication and reporting plans
 """
-    
+
     def get_all_templates(self) -> Dict[str, str]:
         """Get all available templates"""
         return self.templates.copy()
-    
+
     def add_custom_template(self, donor_key: str, template: str) -> None:
         """Add a custom template for a specific donor"""
         self.templates[donor_key] = template
         logger.info(f"Added custom template for {donor_key}")
-    
+
     def get_template_keys(self) -> list:
         """Get list of all template keys"""
-        return list(self.templates.keys()) 
+        return list(self.templates.keys())

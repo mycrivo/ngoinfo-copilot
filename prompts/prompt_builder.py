@@ -9,24 +9,24 @@ logger = logging.getLogger(__name__)
 
 class PromptBuilder:
     """Build AI prompts for proposal generation"""
-    
+
     def __init__(self):
         self.donor_templates = DonorTemplates()
-    
+
     def build_proposal_prompt(
         self,
         profile: NGOProfile,
         funding_opportunity: FundingOpportunity,
-        custom_instructions: Optional[str] = None
+        custom_instructions: Optional[str] = None,
     ) -> str:
         """
         Build a comprehensive prompt for proposal generation
-        
+
         Args:
             profile: NGO profile containing organization information
             funding_opportunity: Funding opportunity details
             custom_instructions: Optional custom instructions from user
-            
+
         Returns:
             str: Complete prompt for AI generation
         """
@@ -35,7 +35,7 @@ class PromptBuilder:
             donor_template = self.donor_templates.get_template(
                 funding_opportunity.donor_organization
             )
-            
+
             # Build the prompt
             prompt = f"""
 You are an expert grant writer specializing in NGO proposals. Generate a comprehensive, professional proposal that aligns with the funding requirements and showcases the organization's capabilities.
@@ -74,14 +74,14 @@ REQUIRED SECTIONS:
 
 Please generate a comprehensive proposal that follows best practices for grant writing and maximizes the chances of funding approval.
 """
-            
+
             logger.debug("Generated proposal prompt")
             return prompt.strip()
-            
+
         except Exception as e:
             logger.error(f"Error building proposal prompt: {str(e)}")
             raise
-    
+
     def _format_organization_profile(self, profile: NGOProfile) -> str:
         """Format organization profile for the prompt"""
         try:
@@ -96,17 +96,17 @@ Annual Budget Range: {profile.annual_budget_range or 'Not specified'}
 Staff Size: {profile.staff_size or 'Not specified'}
 Website: {profile.website or 'Not specified'}
 """
-            
+
             if profile.programs_services:
                 profile_text += f"\nPrograms and Services:\n"
                 for program in profile.programs_services:
                     profile_text += f"- {program}\n"
-            
+
             if profile.target_beneficiaries:
                 profile_text += f"\nTarget Beneficiaries:\n"
                 for beneficiary in profile.target_beneficiaries:
                     profile_text += f"- {beneficiary}\n"
-            
+
             if profile.past_projects:
                 profile_text += f"\nPast Projects:\n"
                 for project in profile.past_projects:
@@ -114,20 +114,24 @@ Website: {profile.website or 'Not specified'}
                         profile_text += f"- {project.get('title', 'Untitled')}: {project.get('description', 'No description')}\n"
                     else:
                         profile_text += f"- {project}\n"
-            
+
             if profile.partnerships:
                 profile_text += f"\nKey Partnerships: {', '.join(profile.partnerships)}"
-            
+
             if profile.funding_sources:
-                profile_text += f"\nFunding Sources: {', '.join(profile.funding_sources)}"
-            
+                profile_text += (
+                    f"\nFunding Sources: {', '.join(profile.funding_sources)}"
+                )
+
             return profile_text.strip()
-            
+
         except Exception as e:
             logger.error(f"Error formatting organization profile: {str(e)}")
             return "Organization profile formatting error"
-    
-    def _format_funding_opportunity(self, funding_opportunity: FundingOpportunity) -> str:
+
+    def _format_funding_opportunity(
+        self, funding_opportunity: FundingOpportunity
+    ) -> str:
         """Format funding opportunity for the prompt"""
         try:
             opp_text = f"""
@@ -136,7 +140,7 @@ Donor Organization: {funding_opportunity.donor_organization or 'Not specified'}
 Funding Type: {funding_opportunity.funding_type or 'Not specified'}
 Description: {funding_opportunity.description or 'Not specified'}
 """
-            
+
             if funding_opportunity.amount_min or funding_opportunity.amount_max:
                 amount_text = "Funding Amount: "
                 if funding_opportunity.amount_min and funding_opportunity.amount_max:
@@ -146,16 +150,18 @@ Description: {funding_opportunity.description or 'Not specified'}
                 elif funding_opportunity.amount_min:
                     amount_text += f"Minimum {funding_opportunity.currency or '$'}{funding_opportunity.amount_min:,.0f}"
                 opp_text += f"\n{amount_text}"
-            
+
             if funding_opportunity.application_deadline:
                 opp_text += f"\nApplication Deadline: {funding_opportunity.application_deadline.strftime('%Y-%m-%d')}"
-            
+
             if funding_opportunity.focus_areas:
-                opp_text += f"\nFocus Areas: {', '.join(funding_opportunity.focus_areas)}"
-            
+                opp_text += (
+                    f"\nFocus Areas: {', '.join(funding_opportunity.focus_areas)}"
+                )
+
             if funding_opportunity.geographic_focus:
                 opp_text += f"\nGeographic Focus: {', '.join(funding_opportunity.geographic_focus)}"
-            
+
             if funding_opportunity.eligibility_criteria:
                 opp_text += f"\nEligibility Criteria:\n"
                 if isinstance(funding_opportunity.eligibility_criteria, list):
@@ -163,37 +169,39 @@ Description: {funding_opportunity.description or 'Not specified'}
                         opp_text += f"- {criteria}\n"
                 else:
                     opp_text += f"- {funding_opportunity.eligibility_criteria}\n"
-            
+
             if funding_opportunity.required_documents:
                 opp_text += f"\nRequired Documents: {', '.join(funding_opportunity.required_documents)}"
-            
+
             if funding_opportunity.application_process:
-                opp_text += f"\nApplication Process: {funding_opportunity.application_process}"
-            
+                opp_text += (
+                    f"\nApplication Process: {funding_opportunity.application_process}"
+                )
+
             if funding_opportunity.keywords:
                 opp_text += f"\nKeywords: {', '.join(funding_opportunity.keywords)}"
-            
+
             return opp_text.strip()
-            
+
         except Exception as e:
             logger.error(f"Error formatting funding opportunity: {str(e)}")
             return "Funding opportunity formatting error"
-    
+
     def _add_custom_instructions(self, custom_instructions: Optional[str]) -> str:
         """Add custom instructions to the prompt"""
         if custom_instructions:
             return f"\nCUSTOM INSTRUCTIONS:\n{custom_instructions}\n"
         return ""
-    
+
     def get_donor_template(self, donor_organization: Optional[str]) -> str:
         """Get donor-specific template"""
         return self.donor_templates.get_template(donor_organization)
-    
+
     def build_enhancement_prompt(
         self,
         original_proposal: str,
         enhancement_request: str,
-        funding_opportunity: FundingOpportunity
+        funding_opportunity: FundingOpportunity,
     ) -> str:
         """Build prompt for enhancing an existing proposal"""
         try:
@@ -219,9 +227,9 @@ ENHANCEMENT GUIDELINES:
 
 Please provide the enhanced proposal that addresses the requested improvements.
 """
-            
+
             return prompt.strip()
-            
+
         except Exception as e:
             logger.error(f"Error building enhancement prompt: {str(e)}")
-            raise 
+            raise
