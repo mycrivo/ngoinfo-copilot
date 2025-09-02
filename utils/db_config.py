@@ -35,17 +35,17 @@ def resolve_database_url() -> str:
 def normalize_database_url(url: str) -> str:
     """
     Normalize database URL by:
-    1. Coercing to postgresql+psycopg2:// if no driver specified
+    1. Coercing to postgresql+asyncpg:// if no driver specified (for async operations)
     2. Adding sslmode=require if not present
     """
     # Parse the URL
     parsed = urlparse(url)
 
-    # Coerce to postgresql+psycopg2:// if no driver specified
+    # Coerce to postgresql+asyncpg:// if no driver specified (for async operations)
     if parsed.scheme in ["postgres", "postgresql"]:
-        scheme = "postgresql+psycopg2"
-    elif parsed.scheme == "postgresql+asyncpg":
-        # Keep asyncpg for async operations
+        scheme = "postgresql+asyncpg"
+    elif parsed.scheme == "postgresql+psycopg2":
+        # Convert psycopg2 to asyncpg for async operations
         scheme = "postgresql+asyncpg"
     else:
         scheme = parsed.scheme
@@ -79,7 +79,7 @@ def get_database_config() -> dict:
     """
     url = resolve_database_url()
 
-    # Base configuration
+    # Base configuration for async operations
     config = {
         "url": url,
         "echo": False,
@@ -89,11 +89,13 @@ def get_database_config() -> dict:
         "pool_recycle": 1800,  # 30 minutes
     }
 
-    # Add psycopg2-specific connection arguments
-    if "psycopg2" in url:
+    # Add asyncpg-specific connection arguments
+    if "asyncpg" in url:
         config["connect_args"] = {
-            "connect_timeout": 5,
-            "application_name": "ngoinfo-copilot",
+            "command_timeout": 5,
+            "server_settings": {
+                "application_name": "ngoinfo-copilot"
+            }
         }
 
     return config

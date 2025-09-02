@@ -41,23 +41,30 @@ class TestDatabaseURLResolver:
             ):
                 resolve_database_url()
 
-    def test_normalize_database_url_postgres_to_psycopg2(self):
-        """Test conversion of postgres:// to postgresql+psycopg2://."""
+    def test_normalize_database_url_postgres_to_asyncpg(self):
+        """Test conversion of postgres:// to postgresql+asyncpg://."""
         url = "postgres://user:pass@host:5432/db"
         normalized = normalize_database_url(url)
-        assert normalized.startswith("postgresql+psycopg2://")
+        assert normalized.startswith("postgresql+asyncpg://")
         assert "sslmode=require" in normalized
 
-    def test_normalize_database_url_postgresql_to_psycopg2(self):
-        """Test conversion of postgresql:// to postgresql+psycopg2://."""
+    def test_normalize_database_url_postgresql_to_asyncpg(self):
+        """Test conversion of postgresql:// to postgresql+asyncpg://."""
         url = "postgresql://user:pass@host:5432/db"
         normalized = normalize_database_url(url)
-        assert normalized.startswith("postgresql+psycopg2://")
+        assert normalized.startswith("postgresql+asyncpg://")
         assert "sslmode=require" in normalized
 
     def test_normalize_database_url_keep_asyncpg(self):
         """Test that postgresql+asyncpg:// is preserved."""
         url = "postgresql+asyncpg://user:pass@host:5432/db"
+        normalized = normalize_database_url(url)
+        assert normalized.startswith("postgresql+asyncpg://")
+        assert "sslmode=require" in normalized
+
+    def test_normalize_database_url_convert_psycopg2_to_asyncpg(self):
+        """Test that postgresql+psycopg2:// is converted to asyncpg."""
+        url = "postgresql+psycopg2://user:pass@host:5432/db"
         normalized = normalize_database_url(url)
         assert normalized.startswith("postgresql+asyncpg://")
         assert "sslmode=require" in normalized
