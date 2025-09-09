@@ -36,7 +36,7 @@ def normalize_database_url(url: str) -> str:
     """
     Normalize database URL by:
     1. Coercing to postgresql+asyncpg:// if no driver specified (for async operations)
-    2. Adding sslmode=require if not present
+    2. Stripping sslmode=... from URL (handled via connect_args for asyncpg)
     """
     # Parse the URL
     parsed = urlparse(url)
@@ -53,12 +53,13 @@ def normalize_database_url(url: str) -> str:
     # Reconstruct URL with normalized scheme
     normalized_url = f"{scheme}://{parsed.netloc}{parsed.path}"
 
-    # Handle query parameters
+    # Handle query parameters - strip sslmode for asyncpg compatibility
     query_params = parse_qs(parsed.query)
-
-    # Add sslmode=require if not present
-    if "sslmode" not in query_params:
-        query_params["sslmode"] = ["require"]
+    
+    # Remove sslmode from URL (asyncpg handles SSL via connect_args)
+    if "sslmode" in query_params:
+        logger.warning("Removing sslmode from URL - asyncpg uses connect_args for SSL")
+        del query_params["sslmode"]
 
     # Reconstruct query string
     if query_params:
@@ -78,6 +79,14 @@ def get_database_config() -> dict:
     Get database configuration with connection pool settings.
     """
     url = resolve_database_url()
+    
+    # Check if SSL is required (default True in production)
+    require_ssl = os.getenv("REQUIRE_DB_SSL", "true").lower() in ("true", "1", "yes")
+    environment = os.getenv("ENV", "development").lower()
+    
+    # Default to True in production, False in development
+    if environment == "production" and not require_ssl:
+        logger.warning("SSL disabled in production environment - this is not recommended")
 
     # Base configuration for async operations
     config = {
@@ -91,11 +100,20 @@ def get_database_config() -> dict:
 
     # Add asyncpg-specific connection arguments
     if "asyncpg" in url:
-        config["connect_args"] = {
+        connect_args = {
             "command_timeout": 5,
             "server_settings": {
                 "application_name": "ngoinfo-copilot"
             }
         }
+        
+        # Only add SSL if required
+        if require_ssl:
+            connect_args["ssl"] = True
+            logger.info("SSL enabled for database connections")
+        else:
+            logger.warning("SSL disabled for database connections")
+            
+        config["connect_args"] = connect_args
 
     return config
