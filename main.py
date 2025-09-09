@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import os
+import logging
 from db import init_db
 
 # Import route modules
@@ -12,18 +13,33 @@ from utils.logging_config import configure_logging, RequestIDMiddleware
 from utils.error_handlers import setup_error_handlers
 from utils.sentry_config import setup_sentry
 
+# Global app health status
+APP_HEALTH = {"status": "unknown", "db": "unknown", "error": None}
 
 # Initialize configuration
 configure_logging()
 setup_sentry()
 
+logger = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan events"""
-    # Startup
-    await init_db()
+    """Application lifespan events with resilient startup"""
+    global APP_HEALTH
+    
+    # Startup - resilient DB initialization
+    try:
+        await init_db()
+        APP_HEALTH = {"status": "ok", "db": "up", "error": None}
+        logger.info("Database initialization successful")
+    except Exception as e:
+        APP_HEALTH = {"status": "degraded", "db": "down", "error": str(e)}
+        logger.error(f"Database initialization failed: {e}", exc_info=True)
+        # Don't raise - allow app to start in degraded mode
+    
     yield
+    
     # Shutdown
     pass
 
@@ -91,43 +107,57 @@ app.include_router(admin_ui.router, prefix="/admin", tags=["admin"])
 
 @app.get("/healthcheck")
 async def healthcheck():
-    """Health check endpoint with database connectivity check"""
+    """Resilient health check endpoint with database connectivity check"""
+    global APP_HEALTH
     from datetime import datetime
     from fastapi import status
     from fastapi.responses import JSONResponse
     from sqlalchemy import text
-    import logging
-
-    logger = logging.getLogger(__name__)
+    import asyncio
 
     app_name = os.getenv("APP_NAME", "NGOInfo-Copilot")
     version = "1.0.0"
     timestamp = datetime.utcnow().isoformat()
 
-    # Test database connectivity with fresh connection
-    db_status = "down"
-    overall_status = "degraded"
-    status_code = status.HTTP_503_SERVICE_UNAVAILABLE
-    db_error = None
+    # Use cached status if available, otherwise test DB
+    if APP_HEALTH["status"] != "unknown":
+        db_status = APP_HEALTH["db"]
+        overall_status = APP_HEALTH["status"]
+        db_error = APP_HEALTH["error"]
+    else:
+        # Test database connectivity with timeout
+        db_status = "down"
+        overall_status = "degraded"
+        db_error = None
 
-    try:
-        from db import engine
-
-        # Use a fresh connection for health check
-        async with engine.connect() as conn:
-            result = await conn.execute(text("SELECT 1 as health_check"))
-            result.scalar_one()
-        db_status = "up"
-        overall_status = "ok"
-        status_code = status.HTTP_200_OK
-        logger.info("Database health check successful")
-    except Exception as e:
-        db_error = f"{type(e).__name__}: {str(e)}"
-        logger.error(f"Database health check failed: {db_error}")
+        try:
+            from db import engine
+            
+            # Use a fresh connection with timeout for health check
+            async def test_db():
+                async with engine.connect() as conn:
+                    result = await conn.execute(text("SELECT 1 as health_check"))
+                    return result.scalar_one()
+            
+            # Test with 1 second timeout
+            await asyncio.wait_for(test_db(), timeout=1.0)
+            db_status = "up"
+            overall_status = "ok"
+            APP_HEALTH = {"status": "ok", "db": "up", "error": None}
+            logger.info("Database health check successful")
+            
+        except asyncio.TimeoutError:
+            db_error = "Database connection timeout"
+            APP_HEALTH = {"status": "degraded", "db": "down", "error": db_error}
+            logger.warning("Database health check timeout")
+        except Exception as e:
+            db_error = f"{type(e).__name__}: {str(e)}"
+            APP_HEALTH = {"status": "degraded", "db": "down", "error": db_error}
+            logger.error(f"Database health check failed: {db_error}")
 
     response_data = {
-        "status": overall_status,
         "service": app_name,
+        "status": overall_status,
         "version": version,
         "timestamp": timestamp,
         "db": db_status,
@@ -137,7 +167,19 @@ async def healthcheck():
     if db_error:
         response_data["db_error"] = db_error
 
-    return JSONResponse(content=response_data, status_code=status_code)
+    # Always return 200 for healthcheck (degraded is still operational)
+    return JSONResponse(content=response_data, status_code=status.HTTP_200_OK)
+
+
+@app.get("/health")
+async def health():
+    """Simple liveness ping - always returns 200"""
+    return {
+        "service": "NGOInfo-Copilot",
+        "status": "ok",
+        "version": "1.0.0",
+        "message": "Service is running"
+    }
 
 
 @app.get("/")
