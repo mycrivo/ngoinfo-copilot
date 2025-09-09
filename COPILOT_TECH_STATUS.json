@@ -1,0 +1,455 @@
+{
+  "report_metadata": {
+    "generated": "2025-01-27",
+    "source": "C:\\Users\\prana\\NGOInfo-Copilot",
+    "python_version": "3.11.9",
+    "analysis_type": "local_repository_inspection"
+  },
+  "repo": {
+    "current_branch": "main",
+    "tracking": "origin/main",
+    "last_commit": "0d9f1d9",
+    "commit_message": "fix: use asyncpg driver for async engine compatibility",
+    "commit_date": "2025-09-02 16:03:02 +0100",
+    "remote_url": "https://github.com/mycrivo/ngoinfo-copilot.git",
+    "modified_files": 22,
+    "status": "working_directory_modified"
+  },
+  "commits": [
+    {
+      "hash": "0d9f1d9",
+      "date": "2025-09-02 16:03:02 +0100", 
+      "author": "Pranab Singh",
+      "message": "fix: use asyncpg driver for async engine compatibility"
+    },
+    {
+      "hash": "c259302",
+      "date": "2025-09-02 14:46:55 +0100",
+      "author": "Pranab Singh", 
+      "message": "style: apply black formatting to all Python files"
+    },
+    {
+      "hash": "a438fc8",
+      "date": "2025-09-02 14:44:12 +0100",
+      "author": "Pranab Singh",
+      "message": "fix: robust DB URL + reliable healthcheck (sslmode, pre_ping, driver)"
+    }
+  ],
+  "entrypoints": {
+    "primary": {
+      "file": "main.py",
+      "line": 31,
+      "framework": "FastAPI",
+      "title": "NGOInfo-Copilot",
+      "version": "1.0.0"
+    },
+    "production": {
+      "command": "uvicorn main:app --host=0.0.0.0 --port=${PORT:-8000}",
+      "file": "Procfile",
+      "line": 1
+    },
+    "docker": {
+      "file": "Dockerfile",
+      "base_image": "python:3.11-slim",
+      "port": 8000
+    }
+  },
+  "routes": {
+    "auth": {
+      "prefix": "/api/auth",
+      "file": "routes/auth_routes.py",
+      "endpoints": [
+        {"method": "POST", "path": "/register", "function": "register_user", "line": 59},
+        {"method": "POST", "path": "/login", "function": "login_user", "line": 98},
+        {"method": "GET", "path": "/me", "function": "get_current_user_info", "line": 134}
+      ]
+    },
+    "profile": {
+      "prefix": "/api/profile", 
+      "file": "routes/profile.py",
+      "endpoints": [
+        {"method": "GET", "path": "/", "function": "get_profile", "line": 56},
+        {"method": "POST", "path": "/", "function": "create_or_update_profile", "line": 116}
+      ]
+    },
+    "proposals": {
+      "prefix": "/api/proposals",
+      "file": "routes/proposal_routes.py", 
+      "endpoints": [
+        {"method": "POST", "path": "/generate", "function": "generate_proposal", "line": 98},
+        {"method": "GET", "path": "/", "function": "list_proposals", "line": 200},
+        {"method": "GET", "path": "/{proposal_id}", "function": "get_proposal", "line": 230},
+        {"method": "PUT", "path": "/{proposal_id}", "function": "update_proposal", "line": 280},
+        {"method": "DELETE", "path": "/{proposal_id}", "function": "delete_proposal", "line": 340},
+        {"method": "POST", "path": "/{proposal_id}/export", "function": "export_proposal", "line": 380}
+      ]
+    },
+    "usage": {
+      "prefix": "/api/usage",
+      "file": "routes/usage_routes.py",
+      "endpoints": [
+        {"method": "GET", "path": "/summary", "function": "get_usage_summary", "line": 25}
+      ]
+    },
+    "admin": {
+      "prefix": "/admin",
+      "file": "routes/admin_ui.py",
+      "endpoints": [
+        {"method": "GET", "path": "/admin-test-ui", "function": "admin_test_ui", "line": 18},
+        {"method": "POST", "path": "/test-auth", "function": "create_test_token", "line": 26},
+        {"method": "POST", "path": "/debug-auth", "function": "debug_auth", "line": 70}
+      ]
+    }
+  },
+  "env": {
+    "required": [
+      {
+        "name": "DATABASE_URL",
+        "file": "utils/db_config.py",
+        "line": 17,
+        "description": "PostgreSQL connection string (highest priority)",
+        "status": "UNKNOWN",
+        "fallbacks": ["COPILOT_DATABASE_URL", "POSTGRES_URL", "DATABASE_CONNECTION_STRING"]
+      },
+      {
+        "name": "OPENAI_API_KEY", 
+        "file": "utils/openai_client.py",
+        "line": 14,
+        "description": "OpenAI API key for GPT-4",
+        "status": "UNKNOWN"
+      }
+    ],
+    "optional": [
+      {
+        "name": "JWT_SECRET_KEY",
+        "file": "utils/auth.py", 
+        "line": 23,
+        "default": "your-super-secret-jwt-key-here-change-in-production",
+        "status": "WARNING_DEFAULT_IN_USE"
+      },
+      {
+        "name": "JWT_ALGORITHM",
+        "file": "utils/auth.py",
+        "line": 24, 
+        "default": "HS256",
+        "status": "OK"
+      },
+      {
+        "name": "JWT_ACCESS_TOKEN_EXPIRE_MINUTES",
+        "file": "utils/auth.py",
+        "line": 25,
+        "default": "1440",
+        "status": "OK"
+      },
+      {
+        "name": "ENVIRONMENT",
+        "file": "utils/auth.py",
+        "line": 28,
+        "default": "development", 
+        "status": "OK"
+      },
+      {
+        "name": "CORS_ALLOWED_ORIGINS",
+        "file": "main.py",
+        "line": 48,
+        "default": "https://ngoinfo.org,https://www.ngoinfo.org",
+        "status": "OK"
+      },
+      {
+        "name": "SENTRY_DSN",
+        "file": "utils/sentry_config.py",
+        "line": 13,
+        "default": null,
+        "status": "UNKNOWN"
+      },
+      {
+        "name": "LOG_LEVEL",
+        "file": "utils/logging_config.py", 
+        "line": 67,
+        "default": "INFO",
+        "status": "OK"
+      },
+      {
+        "name": "RATE_LIMIT_GENERATE_PER_MINUTE",
+        "file": "routes/proposal_routes.py",
+        "line": 112,
+        "default": "5",
+        "status": "OK"
+      }
+    ]
+  },
+  "db": {
+    "engine": "postgresql+asyncpg",
+    "orm": "SQLAlchemy",
+    "config_file": "utils/db_config.py",
+    "connection_file": "db.py",
+    "pool_size": 20,
+    "ssl_required": true,
+    "models": [
+      {
+        "name": "User",
+        "file": "models/users.py",
+        "table": "users",
+        "primary_key": "UUID"
+      },
+      {
+        "name": "NGOProfile", 
+        "file": "models/ngo_profiles.py",
+        "table": "ngo_profiles",
+        "primary_key": "UUID"
+      },
+      {
+        "name": "Proposal",
+        "file": "models/proposals.py", 
+        "table": "proposals",
+        "primary_key": "UUID"
+      },
+      {
+        "name": "FundingOpportunity",
+        "file": "models/funding_opportunities.py",
+        "table": "funding_opportunities", 
+        "primary_key": "Integer",
+        "access": "read_only"
+      },
+      {
+        "name": "Usage",
+        "file": "models/usage.py",
+        "table": "usage",
+        "primary_key": "UUID"
+      },
+      {
+        "name": "IdempotencyKey", 
+        "file": "models/idempotency.py",
+        "table": "idempotency_keys",
+        "primary_key": "UUID"
+      }
+    ]
+  },
+  "migrations": {
+    "tool": "Alembic",
+    "config_file": "alembic.ini",
+    "directory": "alembic/versions",
+    "current_revision": "UNKNOWN",
+    "scripts": [
+      {
+        "revision": "2a5fcfa95cd9",
+        "file": "alembic/versions/2a5fcfa95cd9_initial_baseline_migration.py",
+        "description": "Initial baseline migration",
+        "date": "2025-09-01 17:52:06.810362",
+        "status": "EMPTY_MIGRATION"
+      }
+    ],
+    "issues": [
+      "Baseline migration contains no schema changes (lines 22-27)",
+      "Current migration state unknown - alembic current returns empty"
+    ]
+  },
+  "generation_pipeline": {
+    "primary_model": "gpt-4",
+    "client_file": "utils/openai_client.py",
+    "service_file": "services/proposal_service.py",
+    "temperature": 0.7,
+    "max_tokens": 4000,
+    "prompt_system": {
+      "builder": "prompts/prompt_builder.py", 
+      "factory": "prompts/proposal_prompt_factory.py",
+      "templates": "prompts/donor_templates.py"
+    },
+    "quality_metrics": [
+      "confidence_score",
+      "alignment_score", 
+      "completeness_score"
+    ],
+    "rate_limiting": {
+      "default_limit": 5,
+      "unit": "requests_per_minute",
+      "file": "routes/proposal_routes.py",
+      "line": 112
+    },
+    "idempotency": {
+      "enabled": true,
+      "header": "Idempotency-Key", 
+      "service": "services/idempotency_service.py"
+    }
+  },
+  "export": {
+    "formats": ["docx", "pdf"],
+    "library_docx": "python-docx",
+    "library_pdf": "fpdf2", 
+    "file": "utils/export_utils.py",
+    "features": [
+      "metadata_injection",
+      "executive_summary_extraction", 
+      "markdown_heading_parsing",
+      "automatic_filename_generation"
+    ],
+    "rate_limiting": {
+      "default_limit": 10,
+      "unit": "requests_per_minute"
+    }
+  },
+  "health_endpoints": [
+    {
+      "path": "/healthcheck",
+      "file": "main.py",
+      "line": 92,
+      "checks": ["database_connectivity", "timestamp", "service_info"],
+      "responses": {
+        "200": "service operational, database up",
+        "503": "service degraded, database down"
+      }
+    },
+    {
+      "path": "/",
+      "file": "main.py", 
+      "line": 143,
+      "purpose": "basic_api_info"
+    }
+  ],
+  "railway": {
+    "deployment_files": [
+      {
+        "file": "Procfile",
+        "content": "web: uvicorn main:app --host=0.0.0.0 --port=${PORT:-8000}"
+      },
+      {
+        "file": "runtime.txt",
+        "content": "python-3.11"
+      },
+      {
+        "file": "Dockerfile", 
+        "base_image": "python:3.11-slim"
+      }
+    ],
+    "documentation": "DEPLOYMENT.md",
+    "environment_variables": [
+      "DATABASE_URL",
+      "OPENAI_API_KEY", 
+      "JWT_SECRET_KEY",
+      "ENVIRONMENT"
+    ],
+    "port_handling": {
+      "source": "PORT environment variable",
+      "fallback": 8000,
+      "file": "main.py",
+      "line": 270
+    },
+    "status": "UNKNOWN"
+  },
+  "issues": [
+    {
+      "type": "CRITICAL",
+      "description": "Empty database migration",
+      "file": "alembic/versions/2a5fcfa95cd9_initial_baseline_migration.py",
+      "lines": "22-27",
+      "impact": "Database schema not initialized",
+      "fix": "Run alembic revision --autogenerate -m 'Initial schema'"
+    },
+    {
+      "type": "SECURITY",
+      "description": "Default JWT secret key in use",
+      "file": "utils/auth.py", 
+      "line": 23,
+      "impact": "JWT tokens can be forged",
+      "fix": "Set secure JWT_SECRET_KEY in production environment"
+    },
+    {
+      "type": "WARNING",
+      "description": "Minimal test coverage",
+      "files": ["tests/test_healthcheck.py", "tests/test_db_config.py"],
+      "impact": "Untested critical paths",
+      "fix": "Add comprehensive service and integration tests"
+    },
+    {
+      "type": "UNKNOWN", 
+      "description": "Railway deployment status unknown",
+      "impact": "Cannot verify production deployment health",
+      "fix": "Check Railway dashboard and test public endpoints"
+    }
+  ],
+  "risks": [
+    {
+      "category": "Database",
+      "severity": "HIGH",
+      "description": "Schema drift from empty migrations",
+      "probability": "MEDIUM"
+    },
+    {
+      "category": "Security", 
+      "severity": "HIGH",
+      "description": "JWT secret exposure",
+      "probability": "HIGH"
+    },
+    {
+      "category": "API", 
+      "severity": "MEDIUM", 
+      "description": "OpenAI rate limit breaches",
+      "probability": "HIGH",
+      "mitigation": "Application-level rate limiting implemented"
+    },
+    {
+      "category": "Deployment",
+      "severity": "HIGH",
+      "description": "Railway deployment failure", 
+      "probability": "MEDIUM"
+    },
+    {
+      "category": "Testing",
+      "severity": "MEDIUM",
+      "description": "Untested critical functionality",
+      "probability": "HIGH"
+    }
+  ],
+  "next_actions": [
+    {
+      "priority": 1,
+      "days": "1-2",
+      "category": "Database",
+      "tasks": [
+        "Run alembic revision --autogenerate -m 'Initial schema'",
+        "Apply migrations with alembic upgrade head", 
+        "Verify all models are properly created"
+      ]
+    },
+    {
+      "priority": 2,
+      "days": "3",
+      "category": "Security", 
+      "tasks": [
+        "Generate secure JWT_SECRET_KEY for production",
+        "Update Railway environment variables",
+        "Verify CORS configuration for production domains"
+      ]
+    },
+    {
+      "priority": 3, 
+      "days": "4",
+      "category": "Deployment",
+      "tasks": [
+        "Check Railway deployment status and logs",
+        "Test public endpoints (/healthcheck, /docs)",
+        "Configure custom domain if needed"
+      ]
+    },
+    {
+      "priority": 4,
+      "days": "5-6", 
+      "category": "Testing",
+      "tasks": [
+        "Add service-level tests for ProposalService and ProfileService",
+        "Configure Sentry error tracking (set SENTRY_DSN)",
+        "Add integration tests for API endpoints"
+      ]
+    },
+    {
+      "priority": 5,
+      "days": "7",
+      "category": "Documentation",
+      "tasks": [
+        "Update deployment documentation with actual URLs",
+        "Create operational runbook for common issues", 
+        "Verify WordPress plugin can communicate with API"
+      ]
+    }
+  ]
+}

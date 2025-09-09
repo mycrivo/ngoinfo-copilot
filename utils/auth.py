@@ -19,18 +19,55 @@ security = HTTPBearer(auto_error=False)
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# JWT settings
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-super-secret-jwt-key-here-change-in-production")
+# -------------------------------------------------------------------
+# Environment and Secret Management
+# -------------------------------------------------------------------
+def _validate_jwt_secret() -> str:
+    """Validate and return JWT secret key from environment"""
+    secret_key = os.getenv("JWT_SECRET")  # ✅ use Railway's variable
+    environment = os.getenv("ENV", "development").lower()
+
+    if not secret_key:
+        if environment in ("development", "dev", "local", "test"):
+            secret_key = "dev-placeholder-secret"
+            logger.warning("⚠️ Using default JWT secret in development")
+        else:
+            raise RuntimeError(
+                "JWT_SECRET is not set in Railway environment variables. "
+                "Add it before deploying to production."
+            )
+
+    placeholder_values = [
+        "dev-placeholder-secret",
+        "your-secret-key",
+        "secret",
+        "changeme",
+        "default"
+    ]
+    if environment == "production" and secret_key.lower() in placeholder_values:
+        raise RuntimeError(
+            "JWT_SECRET is set to a weak/placeholder value in production. "
+            "Use a strong 32+ character random secret."
+        )
+
+    return secret_key
+
+
+SECRET_KEY = _validate_jwt_secret()
 ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "1440"))
 
-# Environment check - default to development unless explicitly production
-ENVIRONMENT = os.getenv("ENVIRONMENT", "development").lower()
-IS_DEVELOPMENT = ENVIRONMENT != "production"
+ENVIRONMENT = os.getenv("ENV", "development").lower()
+IS_PRODUCTION = ENVIRONMENT == "production"
+IS_DEVELOPMENT = not IS_PRODUCTION
 
-
-def verify_password(plain_password: str, hashed_password: str) -> bool:
+# -------------------------------------------------------------------
+# Password Utilities
+# -------------------------------------------------------------------
+def verify_password(plain_password: str, hashed_password: Optional[str]) -> bool:
     """Verify a password against its hash"""
+    if not hashed_password:
+        return False
     return pwd_context.verify(plain_password, hashed_password)
 
 
@@ -38,16 +75,18 @@ def get_password_hash(password: str) -> str:
     """Hash a password"""
     return pwd_context.hash(password)
 
-
+# -------------------------------------------------------------------
+# JWT Utilities
+# -------------------------------------------------------------------
 def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
-    """Create a JWT access token"""
+    """Create a JWT access token with enforced `sub` claim"""
+    if "sub" not in data:
+        raise ValueError("JWT payload must include a 'sub' claim (user_id)")
+
     to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    
+    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
     to_encode.update({"exp": expire})
+
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
@@ -57,12 +96,14 @@ def verify_token(token: str) -> Optional[Dict[str, Any]]:
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         return payload
-    except JWTError:
+    except JWTError as e:
+        logger.warning(f"JWT verification failed: {e}")
         return None
 
-
+# -------------------------------------------------------------------
+# User Retrieval
+# -------------------------------------------------------------------
 async def get_user_by_email(db: AsyncSession, email: str) -> Optional[User]:
-    """Get user by email"""
     result = await db.execute(
         select(User).where(User.email == email, User.is_active == True)
     )
@@ -70,7 +111,6 @@ async def get_user_by_email(db: AsyncSession, email: str) -> Optional[User]:
 
 
 async def get_user_by_id(db: AsyncSession, user_id: str) -> Optional[User]:
-    """Get user by ID"""
     result = await db.execute(
         select(User).where(User.id == user_id, User.is_active == True)
     )
@@ -78,99 +118,78 @@ async def get_user_by_id(db: AsyncSession, user_id: str) -> Optional[User]:
 
 
 async def authenticate_user(db: AsyncSession, email: str, password: str) -> Optional[User]:
-    """Authenticate user with email and password"""
     user = await get_user_by_email(db, email)
-    if not user:
-        return None
-    if not verify_password(password, str(user.password_hash)):
+    if not user or not verify_password(password, getattr(user, "password_hash", None)):
         return None
     return user
 
-
+# -------------------------------------------------------------------
+# Debug Utilities
+# -------------------------------------------------------------------
 def debug_auth_headers(request: Request) -> None:
-    """Debug authentication headers and cookies (development only)"""
+    """Log authentication headers (development only)"""
     if not IS_DEVELOPMENT:
         return
-    
-    logger.info("🔍 AUTH DEBUG - Headers received:")
+
+    logger.info("🔍 AUTH DEBUG")
+    logger.info(f"  Path: {request.url.path}")
     logger.info(f"  Environment: {ENVIRONMENT}")
-    logger.info(f"  IS_DEVELOPMENT: {IS_DEVELOPMENT}")
-    logger.info(f"  Request Path: {request.url.path}")
-    
+
     auth_header = request.headers.get("authorization")
     if auth_header:
         logger.info(f"  Authorization: {auth_header[:20]}...")
     else:
         logger.info("  Authorization: None")
-    
+
     cookies = request.cookies
     if cookies:
-        logger.info(f"  Cookies: {list(cookies.keys())}")
-        for key, value in cookies.items():
-            if 'session' in key.lower() or 'token' in key.lower():
-                logger.info(f"    {key}: {value[:20]}...")
+        logger.info(f"  Cookies present: {list(cookies.keys())}")
     else:
         logger.info("  Cookies: None")
 
-
+# -------------------------------------------------------------------
+# Authentication Dependencies
+# -------------------------------------------------------------------
 async def get_current_user_id_flexible(
     request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
     db: AsyncSession = Depends(get_db_session)
 ) -> str:
     """
-    Flexible authentication that supports both Bearer tokens and session cookies
+    Flexible authentication:
+    - Tries Bearer token
+    - Falls back to session cookies
+    - In dev mode, allows fallback user for admin/testing
     """
-    # Debug logging in development
     debug_auth_headers(request)
-    
-    # Development mode debug logging
-    if IS_DEVELOPMENT:
-        logger.info(f"🔧 DEV MODE: Environment={ENVIRONMENT}, Path={request.url.path}")
-    
     user_id = None
-    
-    # Try Bearer token first
+
+    # Bearer token
     if credentials and credentials.credentials:
-        try:
-            token = credentials.credentials
-            payload = verify_token(token)
-            if payload:
-                user_id = payload.get("sub")
-                if user_id:
-                    logger.info(f"✅ Authenticated via Bearer token: user {user_id}")
-                    return user_id
-        except Exception as e:
-            logger.warning(f"Bearer token validation failed: {str(e)}")
-    
-    # Try session cookie authentication
+        payload = verify_token(credentials.credentials)
+        if payload and payload.get("sub"):
+            user_id = payload["sub"]
+            logger.info(f"✅ Authenticated via Bearer token: {user_id}")
+            return user_id
+
+    # Session cookie
     session_token = request.cookies.get("session_token") or request.cookies.get("access_token")
     if session_token:
-        try:
-            payload = verify_token(session_token)
-            if payload:
-                user_id = payload.get("sub")
-                if user_id:
-                    logger.info(f"✅ Authenticated via session cookie: user {user_id}")
-                    return user_id
-        except Exception as e:
-            logger.warning(f"Session cookie validation failed: {str(e)}")
-    
-    # Development mode fallback for admin UI and API testing
+        payload = verify_token(session_token)
+        if payload and payload.get("sub"):
+            user_id = payload["sub"]
+            logger.info(f"✅ Authenticated via session cookie: {user_id}")
+            return user_id
+
+    # Dev fallback
     if IS_DEVELOPMENT:
-        # Allow fallback for admin UI and proposal generation API
         admin_paths = ["/admin", "/api/proposals/generate"]
-        current_path = request.url.path
-        
-        if any(current_path.startswith(path) for path in admin_paths):
+        if any(request.url.path.startswith(path) for path in admin_paths):
             dev_user_id = "admin_user_dev"
-            logger.warning(f"🔧 DEV MODE: Using fallback user '{dev_user_id}' for path '{current_path}'")
-            logger.warning(f"🔧 DEV MODE: Environment={ENVIRONMENT}, IS_DEVELOPMENT={IS_DEVELOPMENT}")
+            logger.warning(f"🔧 DEV MODE: Using fallback user '{dev_user_id}'")
             return dev_user_id
-    
-    # No valid authentication found
-    logger.error(f"❌ No valid authentication found for path: {request.url.path}")
-    logger.error(f"❌ Environment: {ENVIRONMENT}, IS_DEVELOPMENT: {IS_DEVELOPMENT}")
+
+    logger.error(f"❌ Authentication failed for path {request.url.path}")
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Not authenticated",
@@ -181,66 +200,39 @@ async def get_current_user_id_flexible(
 async def get_current_user_id(
     credentials: HTTPAuthorizationCredentials = Depends(security)
 ) -> str:
-    """
-    Extract and validate user ID from JWT token (strict authentication)
-    """
-    try:
-        if not credentials or not credentials.credentials:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid authentication credentials",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-        
-        token = credentials.credentials
-        
-        # Verify JWT token
-        payload = verify_token(token)
-        if payload is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid authentication credentials",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-        
-        user_id = payload.get("sub")
-        if user_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid authentication credentials",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-        
-        return user_id
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Authentication error: {str(e)}")
+    """Strict authentication from Bearer JWT only"""
+    if not credentials or not credentials.credentials:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication credentials",
+            detail="Not authenticated",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    payload = verify_token(credentials.credentials)
+    if not payload or not payload.get("sub"):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return payload["sub"]
 
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: AsyncSession = Depends(get_db_session)
 ) -> User:
-    """
-    Get current user from JWT token
-    """
+    """Return the current User object"""
     user_id = await get_current_user_id(credentials)
     user = await get_user_by_id(db, user_id)
-    
-    if user is None:
+
+    if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found",
+            detail="Not authenticated",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
     return user
 
 
@@ -248,41 +240,18 @@ async def get_optional_user_id(
     request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
 ) -> Optional[str]:
-    """
-    Extract user ID from authentication token or session (optional)
-    Returns None if no valid token is provided
-    """
+    """Return user_id if authenticated, else None"""
     debug_auth_headers(request)
-    
-    # Try Bearer token
+
     if credentials and credentials.credentials:
-        try:
-            token = credentials.credentials
-            payload = verify_token(token)
-            if payload:
-                user_id = payload.get("sub")
-                if user_id:
-                    return user_id
-        except Exception:
-            pass
-    
-    # Try session cookie
+        payload = verify_token(credentials.credentials)
+        if payload and payload.get("sub"):
+            return payload["sub"]
+
     session_token = request.cookies.get("session_token") or request.cookies.get("access_token")
     if session_token:
-        try:
-            payload = verify_token(session_token)
-            if payload:
-                user_id = payload.get("sub")
-                if user_id:
-                    return user_id
-        except Exception:
-            pass
-    
+        payload = verify_token(session_token)
+        if payload and payload.get("sub"):
+            return payload["sub"]
+
     return None
-
-
-# TODO: Add additional auth utilities as needed:
-# - Role-based access control
-# - Permission checking
-# - Token refresh
-# - User session management 

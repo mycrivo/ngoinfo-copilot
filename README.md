@@ -38,12 +38,42 @@ The application supports multiple database URL environment variables with fallba
 - If URL lacks `sslmode`, automatically appends `?sslmode=require`
 - Supports both `postgresql+asyncpg://` (for async operations) and `postgresql+psycopg2://` (for sync operations)
 
-**Railway Deployment Note:** Set the `DATABASE_URL` on the app service; ensure it includes `sslmode=require`.
+**Railway Deployment Note:** Set the `DATABASE_URL` on the app service; ensure it uses `postgresql+asyncpg://` scheme.
+
+## Railway ENV Checklist
+
+**Required Environment Variables for Railway Deployment:**
+
+```bash
+# Database Configuration (use postgresql+asyncpg:// scheme)
+DATABASE_URL=postgresql+asyncpg://USER:PASS@HOST:PORT/DB
+
+# OpenAI Configuration  
+OPENAI_API_KEY=sk-your-openai-api-key-here
+
+# JWT Security (MUST be set for production)
+JWT_SECRET_KEY=your-strong-32-plus-character-random-hex-secret
+
+# CORS Configuration
+CORS_ALLOWED_ORIGINS=https://yourdomain.com,https://www.yourdomain.com
+
+# Environment
+ENV=production
+
+# SSL Configuration
+REQUIRE_DB_SSL=true
+```
+
+**Critical Security Notes:**
+- `JWT_SECRET_KEY` must be a strong 32+ character random secret (NOT the default placeholder)
+- `DATABASE_URL` must use `postgresql+asyncpg://` scheme (no `sslmode=require` in URL)
+- `ENV=production` triggers strict security validation
+- `REQUIRE_DB_SSL=true` enforces SSL for database connections
 
 ### Other Required Variables
 
 - `OPENAI_API_KEY`: Your OpenAI API key
-- `JWT_SECRET_KEY`: Secret key for JWT token signing
+- `JWT_SECRET_KEY`: Secret key for JWT token signing (32+ chars, no placeholders in prod)
 - `CORS_ALLOWED_ORIGINS`: Comma-separated list of allowed origins (optional, defaults to ngoinfo.org)
 
 ### Optional Variables
