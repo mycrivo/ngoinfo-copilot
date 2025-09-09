@@ -1,6 +1,6 @@
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config
+from sqlalchemy import engine_from_config, create_engine
 from sqlalchemy import pool
 
 from alembic import context
@@ -19,11 +19,13 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
+# Import all models to ensure they're registered with SQLAlchemy
+from db import Base
+from models import users, ngo_profiles, proposals, funding_opportunities, usage, idempotency
+
 # add your model's MetaData object here
 # for 'autogenerate' support
-# from myapp import mymodel
-# target_metadata = mymodel.Base.metadata
-target_metadata = None
+target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
@@ -48,6 +50,9 @@ def run_migrations_offline() -> None:
         from utils.db_config import resolve_database_url
 
         url = resolve_database_url()
+        # Convert asyncpg URL to psycopg2 for alembic
+        if "+asyncpg" in url:
+            url = url.replace("+asyncpg", "+psycopg2")
     except Exception as e:
         print(f"Failed to resolve database URL: {e}")
         # Fallback to config file
@@ -76,6 +81,10 @@ def run_migrations_online() -> None:
         from utils.db_config import resolve_database_url
 
         url = resolve_database_url()
+        # Convert asyncpg URL to psycopg2 for alembic
+        if "+asyncpg" in url:
+            url = url.replace("+asyncpg", "+psycopg2")
+        
         # Override the URL in the config
         config.set_main_option("sqlalchemy.url", url)
     except Exception as e:
