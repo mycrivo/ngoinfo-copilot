@@ -5,183 +5,372 @@
 jQuery(document).ready(function($) {
 	'use strict';
 
-	// Health check functionality is handled in the health-panel.php template
-	// This file is reserved for additional admin JavaScript functionality
+	// Health Check functionality
+	var HealthCheck = {
+		init: function() {
+			this.bindEvents();
+		},
 
-	// Form validation for settings
-	var $settingsForm = $('form[action="options.php"]');
-	if ($settingsForm.length) {
-		$settingsForm.on('submit', function(e) {
-			var isValid = true;
-			var errors = [];
+		bindEvents: function() {
+			$('#run-health-check').on('click', this.runHealthCheck.bind(this));
+			$('#run-jwt-diagnostics').on('click', this.runJwtDiagnostics.bind(this));
+		},
 
-			// Validate API Base URL
-			var $apiUrl = $('#api_base_url');
-			if ($apiUrl.length && $apiUrl.val()) {
-				var urlPattern = /^https?:\/\/.+/;
-				if (!urlPattern.test($apiUrl.val())) {
-					errors.push('API Base URL must be a valid HTTP or HTTPS URL.');
-					$apiUrl.addClass('error');
-					isValid = false;
-				} else {
-					$apiUrl.removeClass('error');
-				}
-			}
-
-			// Validate JWT secret strength (client-side check)
-			var $jwtSecret = $('#jwt_secret');
-			if ($jwtSecret.length && $jwtSecret.val()) {
-				var secret = $jwtSecret.val();
-				if (secret.length < 32) {
-					errors.push('JWT secret must be at least 32 characters long.');
-					$jwtSecret.addClass('error');
-					isValid = false;
-				} else if (!/[a-z]/.test(secret) || !/[A-Z]/.test(secret) || !/[0-9]/.test(secret) || !/[^a-zA-Z0-9]/.test(secret)) {
-					errors.push('JWT secret must contain lowercase letters, uppercase letters, numbers, and special characters.');
-					$jwtSecret.addClass('error');
-					isValid = false;
-				} else {
-					$jwtSecret.removeClass('error');
-				}
-			}
-
-			// Display errors if any
-			if (!isValid) {
-				e.preventDefault();
-				
-				// Remove existing error notices
-				$('.ngoinfo-validation-error').remove();
-				
-				// Add error notice
-				var errorHtml = '<div class="notice notice-error ngoinfo-validation-error"><p><strong>Please correct the following errors:</strong></p><ul>';
-				errors.forEach(function(error) {
-					errorHtml += '<li>' + error + '</li>';
-				});
-				errorHtml += '</ul></div>';
-				
-				$('h1').after(errorHtml);
-				
-				// Scroll to top
-				$('html, body').animate({
-					scrollTop: 0
-				}, 300);
-			}
-		});
-
-		// Remove error styling on input
-		$('#api_base_url, #jwt_secret').on('input', function() {
-			$(this).removeClass('error');
-		});
-	}
-
-	// Environment-based URL suggestions
-	var $environment = $('#environment');
-	var $apiUrl = $('#api_base_url');
-	
-	if ($environment.length && $apiUrl.length) {
-		$environment.on('change', function() {
-			var env = $(this).val();
-			var currentUrl = $apiUrl.val();
+		runHealthCheck: function() {
+			var $button = $('#run-health-check');
+			var $results = $('#health-check-results');
+			var $content = $results.find('.result-content');
 			
-			// Only suggest if URL is empty or looks like our default URLs
-			if (!currentUrl || currentUrl.includes('api.ngoinfo.org') || currentUrl.includes('staging-api.ngoinfo.org')) {
-				if (env === 'staging') {
-					$apiUrl.val('https://staging-api.ngoinfo.org');
-				} else if (env === 'production') {
-					$apiUrl.val('https://api.ngoinfo.org');
-				}
-			}
-		});
-	}
-
-	// JWT secret generator (optional enhancement)
-	function generateSecureSecret(length) {
-		length = length || 64;
-		var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+-=[]{}|;:,.<>?';
-		var secret = '';
-		
-		for (var i = 0; i < length; i++) {
-			secret += chars.charAt(Math.floor(Math.random() * chars.length));
-		}
-		
-		return secret;
-	}
-
-	// Add secret generator button (if not already configured)
-	var $jwtSecretField = $('#jwt_secret');
-	if ($jwtSecretField.length && !$jwtSecretField.siblings('.generate-secret-btn').length) {
-		var hasSecret = $jwtSecretField.siblings('.description').find('.dashicons-yes-alt').length > 0;
-		
-		if (!hasSecret) {
-			$jwtSecretField.after(
-				'<button type="button" class="button button-secondary generate-secret-btn" style="margin-left: 10px;">Generate Secure Secret</button>'
-			);
+			// Disable button and show loading state
+			$button.prop('disabled', true);
+			$button.find('.dashicons').addClass('spin');
 			
-			$('.generate-secret-btn').on('click', function(e) {
-				e.preventDefault();
-				var secret = generateSecureSecret(64);
-				$jwtSecretField.val(secret);
-				$jwtSecretField.removeClass('error');
-				
-				// Show confirmation
-				$(this).text('Generated!').prop('disabled', true);
-				setTimeout(function() {
-					$('.generate-secret-btn').text('Generate Secure Secret').prop('disabled', false);
-				}, 2000);
+			// Safer button text updates
+			var buttonText = $button.find('span').length > 0 ? 
+				$button.find('span:last-child') : $button;
+			buttonText.text(ngoinfo_copilot_admin.strings?.checking || 'Checking...');
+			
+			// Clear previous results
+			$results.hide();
+			$content.empty();
+			
+			// Make AJAX request
+			$.ajax({
+				url: ajaxurl,
+				type: 'POST',
+				data: {
+					action: 'ngoinfo_copilot_health_check',
+					nonce: ngoinfo_copilot_admin.nonce
+				},
+				timeout: 45000, // 45 second timeout
+				success: this.handleHealthCheckSuccess.bind(this, $button, $results, $content),
+				error: this.handleHealthCheckError.bind(this, $button, $results, $content)
 			});
-		}
-	}
+		},
 
-	// Tab switching animation
-	$('.nav-tab').on('click', function() {
-		var $this = $(this);
-		if (!$this.hasClass('nav-tab-active')) {
-			// Add loading animation
-			$this.append(' <span class="dashicons dashicons-update spin" style="font-size: 14px;"></span>');
-		}
-	});
-
-	// Auto-save indication for forms
-	var formChanged = false;
-	$settingsForm.find('input, select, textarea').on('change input', function() {
-		if (!formChanged) {
-			formChanged = true;
-			$('.submit .button-primary').text($('.submit .button-primary').text() + ' *');
-		}
-	});
-
-	// Add tooltips for help text
-	$('.description').each(function() {
-		var $desc = $(this);
-		var $field = $desc.siblings('input, select, textarea');
-		
-		if ($field.length) {
-			$field.attr('title', $desc.text());
-		}
-	});
-
-	// Settings page specific enhancements
-	if ($('body').hasClass('settings_page_ngoinfo-copilot')) {
-		// Add visual feedback for required fields
-		$('input[required], select[required]').each(function() {
-			var $field = $(this);
-			var $label = $('label[for="' + $field.attr('id') + '"]');
+		handleHealthCheckSuccess: function($button, $results, $content, response) {
+			this.resetButton($button);
+			$results.show();
 			
-			if ($label.length && $label.text().indexOf('*') === -1) {
-				$label.html($label.html() + ' <span style="color: #d63638;">*</span>');
+			if (response.success) {
+				$content.html(this.buildSuccessHTML(response.data));
+			} else {
+				$content.html(this.buildErrorHTML(response.data));
 			}
-		});
-	}
+		},
 
-	// Console log for debugging (only in development)
-	if (window.location.hostname === 'localhost' || window.location.hostname.includes('staging')) {
-		console.log('NGOInfo Copilot Admin JS loaded');
-		
-		// Expose some utilities for debugging
-		window.ngoinfoDebug = {
-			generateSecret: generateSecureSecret,
-			version: 'NGOInfo Copilot WordPress Plugin v0.1.0'
-		};
-	}
+		handleHealthCheckError: function($button, $results, $content, xhr, status, error) {
+			this.resetButton($button);
+			$results.show();
+			
+			var errorMessage = 'Request failed. Please try again.';
+			if (status === 'timeout') {
+				errorMessage = 'Request timed out. The API may be slow to respond.';
+			} else if (xhr.status === 0) {
+				errorMessage = 'Network error. Please check your connection.';
+			}
+			
+			$content.html(
+				'<div class="health-result error">' +
+				'<h5><span class="dashicons dashicons-warning"></span>' + errorMessage + '</h5>' +
+				'</div>'
+			);
+		},
+
+		resetButton: function($button) {
+			$button.prop('disabled', false);
+			$button.find('.dashicons').removeClass('spin');
+			
+			// Safer button text updates
+			var buttonText = $button.find('span').length > 0 ? 
+				$button.find('span:last-child') : $button;
+			buttonText.text(ngoinfo_copilot_admin.strings?.run_check || 'Run Health Check');
+		},
+
+		buildSuccessHTML: function(data) {
+			var html = '<div class="health-result success">';
+			html += '<h5><span class="dashicons dashicons-yes-alt"></span>' + (data.message || 'Health check successful!') + '</h5>';
+			html += '<div class="result-details">';
+			
+			if (data.status_code) {
+				html += '<div class="result-row"><strong>Status Code:</strong> ' + data.status_code + '</div>';
+			}
+			
+			if (data.duration !== undefined) {
+				html += '<div class="result-row"><strong>Response Time:</strong> ' + data.duration + 'ms</div>';
+			}
+			
+			if (data.response) {
+				html += '<div class="result-row"><strong>Response:</strong><br>';
+				html += '<pre>' + JSON.stringify(data.response, null, 2) + '</pre></div>';
+			}
+			
+			html += '</div></div>';
+			return html;
+		},
+
+		buildErrorHTML: function(data) {
+			var html = '<div class="health-result error">';
+			html += '<h5><span class="dashicons dashicons-warning"></span>' + (data.message || 'Health check failed') + '</h5>';
+			html += '<div class="result-details">';
+			
+			if (data.status_code) {
+				html += '<div class="result-row"><strong>Status Code:</strong> ' + data.status_code + '</div>';
+			}
+			
+			if (data.duration !== undefined) {
+				html += '<div class="result-row"><strong>Duration:</strong> ' + data.duration + 'ms</div>';
+			}
+			
+			if (data.error) {
+				html += '<div class="result-row"><strong>Error:</strong> ' + this.escapeHtml(data.error) + '</div>';
+			}
+			
+			html += '</div></div>';
+			return html;
+		},
+
+		escapeHtml: function(text) {
+			var map = {
+				'&': '&amp;',
+				'<': '&lt;',
+				'>': '&gt;',
+				'"': '&quot;',
+				"'": '&#039;'
+			};
+			return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+		},
+
+		runJwtDiagnostics: function() {
+			var $button = $('#run-jwt-diagnostics');
+			var $results = $('#jwt-diagnostics-results');
+			var $content = $results.find('.result-content');
+			
+			// Disable button and show loading state
+			$button.prop('disabled', true);
+			$button.text('Running Diagnostics...');
+			
+			// Clear previous results
+			$results.hide();
+			$content.empty();
+			
+			// Make AJAX request
+			$.ajax({
+				url: ajaxurl,
+				type: 'POST',
+				data: {
+					action: 'ngoinfo_copilot_jwt_diagnostics',
+					nonce: ngoinfo_copilot_admin.nonce
+				},
+				timeout: 20000, // 20 second timeout
+				success: this.handleJwtDiagnosticsSuccess.bind(this, $button, $results, $content),
+				error: this.handleJwtDiagnosticsError.bind(this, $button, $results, $content)
+			});
+		},
+
+		handleJwtDiagnosticsSuccess: function($button, $results, $content, response) {
+			this.resetJwtButton($button);
+			$results.show();
+			
+			if (response.success) {
+				$content.html(this.buildJwtSuccessHTML(response.data));
+			} else {
+				$content.html(this.buildJwtErrorHTML(response.data));
+			}
+		},
+
+		handleJwtDiagnosticsError: function($button, $results, $content, xhr, status, error) {
+			this.resetJwtButton($button);
+			$results.show();
+			
+			var errorMessage = 'Request failed. Please try again.';
+			if (status === 'timeout') {
+				errorMessage = 'Request timed out. The API may be slow to respond.';
+			} else if (xhr.status === 0) {
+				errorMessage = 'Network error. Please check your connection.';
+			}
+			
+			$content.html(
+				'<div class="health-result error">' +
+				'<h5><span class="dashicons dashicons-warning"></span>' + errorMessage + '</h5>' +
+				'</div>'
+			);
+		},
+
+		resetJwtButton: function($button) {
+			$button.prop('disabled', false);
+			$button.text('Run JWT Diagnostics');
+		},
+
+		buildJwtSuccessHTML: function(data) {
+			var html = '<div class="health-result success">';
+			html += '<h5><span class="dashicons dashicons-yes-alt"></span>' + (data.note || 'JWT Diagnostics successful!') + '</h5>';
+			html += '<div class="result-details">';
+			
+			if (data.status_code) {
+				html += '<div class="result-row"><strong>Status Code:</strong> ' + data.status_code + '</div>';
+			}
+			
+			if (data.duration_ms !== undefined) {
+				html += '<div class="result-row"><strong>Response Time:</strong> ' + data.duration_ms + 'ms</div>';
+			}
+			
+			if (data.body_decoded) {
+				html += '<div class="result-row"><strong>Decoded Claims:</strong><br>';
+				html += '<pre>' + this.prettyJson(data.body_decoded) + '</pre></div>';
+			}
+			
+			html += '</div></div>';
+			return html;
+		},
+
+		buildJwtErrorHTML: function(data) {
+			var html = '<div class="health-result error">';
+			html += '<h5><span class="dashicons dashicons-warning"></span>' + (data.message || 'JWT Diagnostics failed') + '</h5>';
+			html += '<div class="result-details">';
+			
+			if (data.status_code) {
+				html += '<div class="result-row"><strong>Status Code:</strong> ' + data.status_code + '</div>';
+			}
+			
+			if (data.duration_ms !== undefined) {
+				html += '<div class="result-row"><strong>Duration:</strong> ' + data.duration_ms + 'ms</div>';
+			}
+			
+			html += '</div></div>';
+			return html;
+		},
+
+		prettyJson: function(obj) {
+			return JSON.stringify(obj, null, 2);
+		}
+	};
+
+	// Settings Form enhancements
+	var SettingsForm = {
+		init: function() {
+			this.bindEvents();
+			this.checkConfiguration();
+		},
+
+		bindEvents: function() {
+			$('#api_base_url, #environment').on('change', this.validateApiUrl.bind(this));
+			$('#jwt_secret').on('input', this.validateJwtSecret.bind(this));
+			$('form').on('submit', this.beforeSubmit.bind(this));
+		},
+
+		validateApiUrl: function() {
+			var $url = $('#api_base_url');
+			var $env = $('#environment');
+			var url = $url.val().trim();
+			var env = $env.val();
+			
+			if (!url) return;
+			
+			// Basic URL validation
+			try {
+				new URL(url);
+			} catch (e) {
+				this.showFieldError($url, 'Please enter a valid URL.');
+				return;
+			}
+			
+			// HTTPS requirement for production
+			if (env === 'production' && !url.startsWith('https://')) {
+				this.showFieldError($url, 'Production environment requires HTTPS.');
+				return;
+			}
+			
+			this.clearFieldError($url);
+		},
+
+		validateJwtSecret: function() {
+			var $secret = $('#jwt_secret');
+			var secret = $secret.val();
+			
+			if (!secret) {
+				this.clearFieldError($secret);
+				return;
+			}
+			
+			// Length check
+			if (secret.length < 32) {
+				this.showFieldError($secret, 'Secret must be at least 32 characters long.');
+				return;
+			}
+			
+			// Complexity check
+			var hasLower = /[a-z]/.test(secret);
+			var hasUpper = /[A-Z]/.test(secret);
+			var hasNumber = /[0-9]/.test(secret);
+			var hasSpecial = /[^a-zA-Z0-9]/.test(secret);
+			
+			if (!hasLower || !hasUpper || !hasNumber || !hasSpecial) {
+				this.showFieldError($secret, 'Secret must contain uppercase, lowercase, numbers, and special characters.');
+				return;
+			}
+			
+			this.clearFieldError($secret);
+		},
+
+		showFieldError: function($field, message) {
+			this.clearFieldError($field);
+			$field.addClass('error');
+			$field.after('<div class="field-error" style="color: #d63638; font-size: 12px; margin-top: 5px;">' + message + '</div>');
+		},
+
+		clearFieldError: function($field) {
+			$field.removeClass('error');
+			$field.siblings('.field-error').remove();
+		},
+
+		beforeSubmit: function(e) {
+			// Remove any existing error messages
+			$('.field-error').remove();
+			
+			// Validate all fields
+			this.validateApiUrl();
+			this.validateJwtSecret();
+			
+			// Check if there are any errors
+			if ($('.field-error').length > 0) {
+				e.preventDefault();
+				$('html, body').animate({
+					scrollTop: $('.field-error').first().offset().top - 100
+				}, 500);
+			}
+		},
+
+		checkConfiguration: function() {
+			// Show warnings for incomplete configuration
+			var hasApiUrl = $('#api_base_url').val().trim() !== '';
+			var hasJwtSecret = $('.dashicons-yes-alt').closest('.status-item').length > 0;
+			
+			if (!hasApiUrl || !hasJwtSecret) {
+				var $warning = $('<div class="notice notice-warning"><p><strong>Configuration Incomplete:</strong> Please configure both API Base URL and JWT Secret to use the plugin features.</p></div>');
+				$('.wrap h1').after($warning);
+			}
+		}
+	};
+
+	// Initialize components
+	HealthCheck.init();
+	SettingsForm.init();
+
+	// Add notice dismissal functionality
+	$(document).on('click', '.notice-dismiss', function() {
+		$(this).closest('.notice').fadeOut();
+	});
+
+	// Auto-refresh status after successful health check
+	$(document).on('ajaxSuccess', function(event, xhr, settings) {
+		if (settings.data && settings.data.indexOf('ngoinfo_copilot_health_check') !== -1) {
+			// Reload status card after 1 second
+			setTimeout(function() {
+				location.reload();
+			}, 1000);
+		}
+	});
 });
+
 

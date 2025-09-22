@@ -2,10 +2,8 @@
 /**
  * JWT authentication for NGOInfo Copilot
  *
- * @package NGOInfo\Copilot
+ * @package NGOInfo_Copilot
  */
-
-namespace NGOInfo\Copilot;
 
 // Prevent direct access
 if ( ! defined( 'ABSPATH' ) ) {
@@ -15,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * Auth class for JWT token management
  */
-class Auth {
+class NGOInfo_Copilot_Auth {
 
 	/**
 	 * JWT algorithm
@@ -25,14 +23,59 @@ class Auth {
 	private const ALGORITHM = 'HS256';
 
 	/**
+	 * Create bearer token for user
+	 *
+	 * @param int $user_id User ID.
+	 * @return array|WP_Error Array with 'token' and 'expires' keys, or WP_Error on failure.
+	 */
+	public function create_bearer_token( $user_id ) {
+		$user = get_user_by( 'ID', $user_id );
+		if ( ! $user ) {
+			return new WP_Error( 'invalid_user', __( 'Invalid user ID.', 'ngoinfo-copilot' ) );
+		}
+
+		$jwt_secret = $this->get_jwt_secret();
+		if ( false === $jwt_secret ) {
+			return new WP_Error( 'jwt_secret_missing', __( 'JWT secret is not configured.', 'ngoinfo-copilot' ) );
+		}
+
+		// Get JWT configuration
+		$issuer   = ngoinfo_copilot_get_option( 'jwt_issuer', 'ngoinfo-wp' );
+		$audience = ngoinfo_copilot_get_option( 'jwt_audience', 'ngoinfo-copilot' );
+		$expiry   = ngoinfo_copilot_get_option( 'jwt_expiry', 60 );
+
+		// Create JWT claims
+		$current_time = time();
+		$claims = array(
+			'sub'        => (string) $user->ID,
+			'email'      => $user->user_email,
+			'iat'        => $current_time,
+			'exp'        => $current_time + ( $expiry * 60 ),
+			'iss'        => $issuer,
+			'aud'        => $audience,
+		);
+
+		// Generate JWT
+		$token = $this->create_jwt( $claims, $jwt_secret );
+		if ( false === $token ) {
+			return new WP_Error( 'jwt_creation_failed', __( 'Failed to create JWT token.', 'ngoinfo-copilot' ) );
+		}
+
+		return array(
+			'token'   => $token,
+			'expires' => $current_time + ( $expiry * 60 ),
+		);
+	}
+
+	/**
 	 * Mint JWT token for user
 	 *
-	 * @param \WP_User $user User object.
-	 * @param array    $claims_extra Additional claims to include.
+	 * @param WP_User $user User object.
+	 * @param array   $claims_extra Additional claims to include.
 	 * @return string|false JWT token or false on failure.
 	 */
 	public function mint_user_jwt( $user, $claims_extra = array() ) {
-		if ( ! $user instanceof \WP_User ) {
+		if ( ! $user instanceof WP_User ) {
 			ngoinfo_copilot_log( 'Invalid user object provided to mint_user_jwt', 'error' );
 			return false;
 		}
@@ -64,34 +107,8 @@ class Auth {
 			$claims_extra
 		);
 
-		// Debug: Log JWT claims
-		ngoinfo_copilot_debug( 'Minted JWT claims', $claims );
-
 		// Generate JWT
-		$jwt = $this->create_jwt( $claims, $secret );
-		
-		// Debug: Log JWT length (not the raw JWT for security)
-		if ( false !== $jwt ) {
-			ngoinfo_copilot_debug( 'JWT length', array( 'len' => strlen( $jwt ) ) );
-		}
-		
-		// Log auth.build_claims and token prefix
-		ngoinfo_log( 'auth.build_claims' );
-		ngoinfo_log( array(
-			'email'   => $user->user_email,
-			'user_id' => $user->ID,
-			'iss'     => $issuer,
-			'aud'     => $audience,
-			'now'     => $current_time,
-			'exp'     => $current_time + ( $expiry * 60 ),
-		) );
-		
-		if ( false !== $jwt ) {
-			ngoinfo_log( 'auth.token_prefix' );
-			ngoinfo_log( substr( $jwt, 0, 12 ) . '...' );
-		}
-		
-		return $jwt;
+		return $this->create_jwt( $claims, $secret );
 	}
 
 	/**
@@ -179,24 +196,121 @@ class Auth {
 	}
 
 	/**
-	 * Get user plan tier
+	 * Get user plan tier based on MemberPress memberships
 	 *
-	 * @param \WP_User $user User object.
-	 * @return string Plan tier.
+	 * @param WP_User $user User object.
+	 * @return string Plan tier (FREE, GROWTH, IMPACT).
 	 */
 	private function get_user_plan_tier( $user ) {
-		// For now, return a placeholder
-		// This will be enhanced in future phases when plan management is implemented
-		$plan_tier = get_user_meta( $user->ID, 'ngoinfo_copilot_plan_tier', true );
+		// Check if MemberPress is active
+		if ( ! function_exists( 'memberpress_get_active_memberships' ) ) {
+			ngoinfo_copilot_log( 'MemberPress not active, defaulting to FREE tier', 'warning' );
+			return 'FREE';
+		}
+
+		// Get user's active memberships
+		$active_memberships = memberpress_get_active_memberships( $user->ID );
 		
-		return ! empty( $plan_tier ) ? $plan_tier : 'free';
+		if ( empty( $active_memberships ) ) {
+			// Check for Free plan with 24h expiry rule
+			if ( $this->has_free_plan_access( $user->ID ) ) {
+				return 'FREE';
+			}
+			return 'FREE'; // Default to FREE for non-members
+		}
+
+		// Get MemberPress plan mappings
+		$free_ids = $this->parse_membership_ids( NGOInfo_Copilot_Settings::get_memberpress_free_ids() );
+		$growth_ids = $this->parse_membership_ids( NGOInfo_Copilot_Settings::get_memberpress_growth_ids() );
+		$impact_ids = $this->parse_membership_ids( NGOInfo_Copilot_Settings::get_memberpress_impact_ids() );
+
+		// Check for highest tier membership (Impact > Growth > Free)
+		foreach ( $active_memberships as $membership ) {
+			$membership_id = $membership->id ?? $membership->ID ?? null;
+			
+			if ( $membership_id && in_array( $membership_id, $impact_ids, true ) ) {
+				return 'IMPACT';
+			}
+		}
+
+		foreach ( $active_memberships as $membership ) {
+			$membership_id = $membership->id ?? $membership->ID ?? null;
+			
+			if ( $membership_id && in_array( $membership_id, $growth_ids, true ) ) {
+				return 'GROWTH';
+			}
+		}
+
+		foreach ( $active_memberships as $membership ) {
+			$membership_id = $membership->id ?? $membership->ID ?? null;
+			
+			if ( $membership_id && in_array( $membership_id, $free_ids, true ) ) {
+				return 'FREE';
+			}
+		}
+
+		// If user has memberships but none match our mapping, default to FREE
+		return 'FREE';
+	}
+
+	/**
+	 * Parse comma-separated membership IDs into array
+	 *
+	 * @param string $ids_string Comma-separated IDs.
+	 * @return array Array of integer IDs.
+	 */
+	private function parse_membership_ids( $ids_string ) {
+		if ( empty( $ids_string ) ) {
+			return array();
+		}
+
+		$ids = explode( ',', $ids_string );
+		$parsed_ids = array();
+
+		foreach ( $ids as $id ) {
+			$clean_id = intval( trim( $id ) );
+			if ( $clean_id > 0 ) {
+				$parsed_ids[] = $clean_id;
+			}
+		}
+
+		return $parsed_ids;
+	}
+
+	/**
+	 * Check if user has Free plan access with 24h expiry rule
+	 *
+	 * @param int $user_id User ID.
+	 * @return bool True if user has free access.
+	 */
+	private function has_free_plan_access( $user_id ) {
+		// Check if user has used free access in last 24 hours
+		$last_free_use = get_user_meta( $user_id, '_ngoinfo_copilot_last_free_use', true );
+		
+		if ( empty( $last_free_use ) ) {
+			return true; // First time user, allow free access
+		}
+
+		$time_since_last_use = time() - intval( $last_free_use );
+		$twenty_four_hours = 24 * 60 * 60; // 24 hours in seconds
+
+		return $time_since_last_use >= $twenty_four_hours;
+	}
+
+	/**
+	 * Mark free plan usage for 24h expiry tracking
+	 *
+	 * @param int $user_id User ID.
+	 */
+	public function mark_free_plan_usage( $user_id ) {
+		update_user_meta( $user_id, '_ngoinfo_copilot_last_free_use', time() );
 	}
 
 	/**
 	 * Add authorization header to HTTP request args
 	 *
-	 * @param array    $args HTTP request arguments.
-	 * @param \WP_User $user User for JWT token (optional, uses current user if not provided).
+	 * @param array   $args HTTP request arguments.
+	 * @param WP_User $user User for JWT token (optional, uses current user if not provided).
 	 * @return array Modified HTTP request arguments.
 	 */
 	public function add_auth_header( $args, $user = null ) {
@@ -263,65 +377,12 @@ class Auth {
 			'algorithm'    => self::ALGORITHM,
 		);
 	}
-
-	/**
-	 * Generate secure random secret
-	 *
-	 * @param int $length Secret length (default: 64).
-	 * @return string Random secret.
-	 */
-	public function generate_random_secret( $length = 64 ) {
-		$chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+-=[]{}|;:,.<>?';
-		$secret = '';
-		
-		for ( $i = 0; $i < $length; $i++ ) {
-			$secret .= $chars[ wp_rand( 0, strlen( $chars ) - 1 ) ];
-		}
-		
-		return $secret;
-	}
-
-	/**
-	 * Test JWT token generation
-	 *
-	 * @param \WP_User $user User to test with (optional, uses current user).
-	 * @return array Test results.
-	 */
-	public function test_jwt_generation( $user = null ) {
-		if ( null === $user ) {
-			$user = wp_get_current_user();
-		}
-
-		if ( ! $user || ! $user->exists() ) {
-			return array(
-				'success' => false,
-				'message' => __( 'No valid user available for testing.', 'ngoinfo-copilot' ),
-			);
-		}
-
-		$start_time = microtime( true );
-		$jwt_token  = $this->mint_user_jwt( $user );
-		$end_time   = microtime( true );
-
-		if ( false === $jwt_token ) {
-			return array(
-				'success' => false,
-				'message' => __( 'Failed to generate JWT token.', 'ngoinfo-copilot' ),
-			);
-		}
-
-		$token_parts = explode( '.', $jwt_token );
-		$header      = json_decode( base64_decode( strtr( $token_parts[0], '-_', '+/' ) ), true );
-		$payload     = json_decode( base64_decode( strtr( $token_parts[1], '-_', '+/' ) ), true );
-
-		return array(
-			'success'        => true,
-			'message'        => __( 'JWT token generated successfully.', 'ngoinfo-copilot' ),
-			'token_preview'  => substr( $jwt_token, 0, 50 ) . '...',
-			'generation_time' => round( ( $end_time - $start_time ) * 1000, 2 ) . 'ms',
-			'header'         => $header,
-			'payload'        => array_merge( $payload, array( 'sub' => '[REDACTED]', 'email' => '[REDACTED]' ) ),
-		);
-	}
 }
+
+
+
+
+
+
+
 

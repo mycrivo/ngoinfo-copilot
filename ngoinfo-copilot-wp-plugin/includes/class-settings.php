@@ -2,10 +2,8 @@
 /**
  * Settings management for NGOInfo Copilot
  *
- * @package NGOInfo\Copilot
+ * @package NGOInfo_Copilot
  */
-
-namespace NGOInfo\Copilot;
 
 // Prevent direct access
 if ( ! defined( 'ABSPATH' ) ) {
@@ -15,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * Settings class
  */
-class Settings {
+class NGOInfo_Copilot_Settings {
 
 	/**
 	 * Settings page slug
@@ -100,33 +98,6 @@ class Settings {
 			$this->page_slug
 		);
 
-		// JWT Issuer
-		add_settings_field(
-			'jwt_issuer',
-			__( 'JWT Issuer (iss)', 'ngoinfo-copilot' ),
-			array( $this, 'render_jwt_issuer_field' ),
-			$this->page_slug,
-			'jwt_config'
-		);
-
-		// JWT Audience
-		add_settings_field(
-			'jwt_audience',
-			__( 'JWT Audience (aud)', 'ngoinfo-copilot' ),
-			array( $this, 'render_jwt_audience_field' ),
-			$this->page_slug,
-			'jwt_config'
-		);
-
-		// JWT Expiry
-		add_settings_field(
-			'jwt_expiry',
-			__( 'JWT Expiry (minutes)', 'ngoinfo-copilot' ),
-			array( $this, 'render_jwt_expiry_field' ),
-			$this->page_slug,
-			'jwt_config'
-		);
-
 		// JWT Secret
 		add_settings_field(
 			'jwt_secret',
@@ -134,6 +105,75 @@ class Settings {
 			array( $this, 'render_jwt_secret_field' ),
 			$this->page_slug,
 			'jwt_config'
+		);
+
+		// JWT Issuer
+		add_settings_field(
+			'jwt_iss',
+			__( 'JWT Issuer', 'ngoinfo-copilot' ),
+			array( $this, 'render_jwt_iss_field' ),
+			$this->page_slug,
+			'jwt_config'
+		);
+
+		// JWT Audience
+		add_settings_field(
+			'jwt_aud',
+			__( 'JWT Audience', 'ngoinfo-copilot' ),
+			array( $this, 'render_jwt_aud_field' ),
+			$this->page_slug,
+			'jwt_config'
+		);
+
+		// Grantpilot Configuration section
+		add_settings_section(
+			'grantpilot_config',
+			__( 'Grantpilot Configuration', 'ngoinfo-copilot' ),
+			array( $this, 'render_grantpilot_config_section' ),
+			$this->page_slug
+		);
+
+		// MemberPress Plan Mapping
+		add_settings_field(
+			'memberpress_free_ids',
+			__( 'Free Plan Membership IDs', 'ngoinfo-copilot' ),
+			array( $this, 'render_memberpress_free_ids_field' ),
+			$this->page_slug,
+			'grantpilot_config'
+		);
+
+		add_settings_field(
+			'memberpress_growth_ids',
+			__( 'Growth Plan Membership IDs', 'ngoinfo-copilot' ),
+			array( $this, 'render_memberpress_growth_ids_field' ),
+			$this->page_slug,
+			'grantpilot_config'
+		);
+
+		add_settings_field(
+			'memberpress_impact_ids',
+			__( 'Impact Plan Membership IDs', 'ngoinfo-copilot' ),
+			array( $this, 'render_memberpress_impact_ids_field' ),
+			$this->page_slug,
+			'grantpilot_config'
+		);
+
+		// HTTP Timeout
+		add_settings_field(
+			'http_timeout',
+			__( 'HTTP Timeout (seconds)', 'ngoinfo-copilot' ),
+			array( $this, 'render_http_timeout_field' ),
+			$this->page_slug,
+			'grantpilot_config'
+		);
+
+		// Cooldown Seconds
+		add_settings_field(
+			'cooldown_secs',
+			__( 'Rate Limit Cooldown (seconds)', 'ngoinfo-copilot' ),
+			array( $this, 'render_cooldown_secs_field' ),
+			$this->page_slug,
+			'grantpilot_config'
 		);
 	}
 
@@ -147,6 +187,10 @@ class Settings {
 
 		// Handle tab switching
 		$active_tab = isset( $_GET['tab'] ) ? sanitize_text_field( wp_unslash( $_GET['tab'] ) ) : 'settings';
+		
+		// Pass variables to template
+		$page_slug = $this->page_slug;
+		$settings_group = $this->settings_group;
 		
 		require_once NGOINFO_COPILOT_PLUGIN_DIR . 'admin/views/settings-page.php';
 	}
@@ -163,6 +207,13 @@ class Settings {
 	 */
 	public function render_jwt_config_section() {
 		echo '<p>' . esc_html__( 'Configure JWT token settings for secure API authentication.', 'ngoinfo-copilot' ) . '</p>';
+	}
+
+	/**
+	 * Render Grantpilot config section
+	 */
+	public function render_grantpilot_config_section() {
+		echo '<p>' . esc_html__( 'Configure Grantpilot generator settings and MemberPress integration.', 'ngoinfo-copilot' ) . '</p>';
 	}
 
 	/**
@@ -204,59 +255,6 @@ class Settings {
 	}
 
 	/**
-	 * Render JWT issuer field
-	 */
-	public function render_jwt_issuer_field() {
-		$value = ngoinfo_copilot_get_option( 'jwt_issuer', 'ngoinfo-wp' );
-		?>
-		<input type="text" 
-			   id="jwt_issuer" 
-			   name="ngoinfo_copilot_settings[jwt_issuer]" 
-			   value="<?php echo esc_attr( $value ); ?>" 
-			   class="regular-text" />
-		<p class="description">
-			<?php esc_html_e( 'JWT issuer claim (iss). Leave default unless instructed otherwise.', 'ngoinfo-copilot' ); ?>
-		</p>
-		<?php
-	}
-
-	/**
-	 * Render JWT audience field
-	 */
-	public function render_jwt_audience_field() {
-		$value = ngoinfo_copilot_get_option( 'jwt_audience', 'ngoinfo-copilot' );
-		?>
-		<input type="text" 
-			   id="jwt_audience" 
-			   name="ngoinfo_copilot_settings[jwt_audience]" 
-			   value="<?php echo esc_attr( $value ); ?>" 
-			   class="regular-text" />
-		<p class="description">
-			<?php esc_html_e( 'JWT audience claim (aud). Leave default unless instructed otherwise.', 'ngoinfo-copilot' ); ?>
-		</p>
-		<?php
-	}
-
-	/**
-	 * Render JWT expiry field
-	 */
-	public function render_jwt_expiry_field() {
-		$value = ngoinfo_copilot_get_option( 'jwt_expiry', 15 );
-		?>
-		<input type="number" 
-			   id="jwt_expiry" 
-			   name="ngoinfo_copilot_settings[jwt_expiry]" 
-			   value="<?php echo esc_attr( $value ); ?>" 
-			   min="1" 
-			   max="1440" 
-			   class="small-text" />
-		<p class="description">
-			<?php esc_html_e( 'JWT token expiry time in minutes. Recommended: 15 minutes.', 'ngoinfo-copilot' ); ?>
-		</p>
-		<?php
-	}
-
-	/**
 	 * Render JWT secret field
 	 */
 	public function render_jwt_secret_field() {
@@ -284,6 +282,136 @@ class Settings {
 	}
 
 	/**
+	 * Render JWT issuer field
+	 */
+	public function render_jwt_iss_field() {
+		$value = ngoinfo_copilot_get_option( 'jwt_iss', 'ngoinfo-wp' );
+		?>
+		<input type="text" 
+			   id="jwt_iss" 
+			   name="ngoinfo_copilot_settings[jwt_iss]" 
+			   value="<?php echo esc_attr( $value ); ?>" 
+			   class="regular-text" 
+			   required />
+		<p class="description">
+			<?php esc_html_e( 'JWT issuer identifier (e.g., ngoinfo-wp)', 'ngoinfo-copilot' ); ?>
+		</p>
+		<?php
+	}
+
+	/**
+	 * Render JWT audience field
+	 */
+	public function render_jwt_aud_field() {
+		$value = ngoinfo_copilot_get_option( 'jwt_aud', 'grantpilot-api' );
+		?>
+		<input type="text" 
+			   id="jwt_aud" 
+			   name="ngoinfo_copilot_settings[jwt_aud]" 
+			   value="<?php echo esc_attr( $value ); ?>" 
+			   class="regular-text" 
+			   required />
+		<p class="description">
+			<?php esc_html_e( 'JWT audience identifier (e.g., grantpilot-api)', 'ngoinfo-copilot' ); ?>
+		</p>
+		<?php
+	}
+
+	/**
+	 * Render MemberPress Free Plan IDs field
+	 */
+	public function render_memberpress_free_ids_field() {
+		$value = ngoinfo_copilot_get_option( 'memberpress_free_ids', '2268' );
+		?>
+		<input type="text" 
+			   id="memberpress_free_ids" 
+			   name="ngoinfo_copilot_settings[memberpress_free_ids]" 
+			   value="<?php echo esc_attr( $value ); ?>" 
+			   class="regular-text" 
+			   required />
+		<p class="description">
+			<?php esc_html_e( 'Comma-separated MemberPress membership IDs for Free plan (e.g., 2268)', 'ngoinfo-copilot' ); ?>
+		</p>
+		<?php
+	}
+
+	/**
+	 * Render MemberPress Growth Plan IDs field
+	 */
+	public function render_memberpress_growth_ids_field() {
+		$value = ngoinfo_copilot_get_option( 'memberpress_growth_ids', '2259,2271' );
+		?>
+		<input type="text" 
+			   id="memberpress_growth_ids" 
+			   name="ngoinfo_copilot_settings[memberpress_growth_ids]" 
+			   value="<?php echo esc_attr( $value ); ?>" 
+			   class="regular-text" 
+			   required />
+		<p class="description">
+			<?php esc_html_e( 'Comma-separated MemberPress membership IDs for Growth plan (e.g., 2259,2271)', 'ngoinfo-copilot' ); ?>
+		</p>
+		<?php
+	}
+
+	/**
+	 * Render MemberPress Impact Plan IDs field
+	 */
+	public function render_memberpress_impact_ids_field() {
+		$value = ngoinfo_copilot_get_option( 'memberpress_impact_ids', '2272,2273' );
+		?>
+		<input type="text" 
+			   id="memberpress_impact_ids" 
+			   name="ngoinfo_copilot_settings[memberpress_impact_ids]" 
+			   value="<?php echo esc_attr( $value ); ?>" 
+			   class="regular-text" 
+			   required />
+		<p class="description">
+			<?php esc_html_e( 'Comma-separated MemberPress membership IDs for Impact plan (e.g., 2272,2273)', 'ngoinfo-copilot' ); ?>
+		</p>
+		<?php
+	}
+
+	/**
+	 * Render HTTP timeout field
+	 */
+	public function render_http_timeout_field() {
+		$value = ngoinfo_copilot_get_option( 'http_timeout', 60 );
+		?>
+		<input type="number" 
+			   id="http_timeout" 
+			   name="ngoinfo_copilot_settings[http_timeout]" 
+			   value="<?php echo esc_attr( $value ); ?>" 
+			   class="small-text" 
+			   min="10" 
+			   max="300" 
+			   required />
+		<p class="description">
+			<?php esc_html_e( 'HTTP request timeout in seconds (10-300)', 'ngoinfo-copilot' ); ?>
+		</p>
+		<?php
+	}
+
+	/**
+	 * Render cooldown seconds field
+	 */
+	public function render_cooldown_secs_field() {
+		$value = ngoinfo_copilot_get_option( 'cooldown_secs', 60 );
+		?>
+		<input type="number" 
+			   id="cooldown_secs" 
+			   name="ngoinfo_copilot_settings[cooldown_secs]" 
+			   value="<?php echo esc_attr( $value ); ?>" 
+			   class="small-text" 
+			   min="30" 
+			   max="300" 
+			   required />
+		<p class="description">
+			<?php esc_html_e( 'Rate limit cooldown in seconds (30-300)', 'ngoinfo-copilot' ); ?>
+		</p>
+		<?php
+	}
+
+	/**
 	 * Sanitize settings
 	 *
 	 * @param array $input Input settings.
@@ -304,19 +432,38 @@ class Settings {
 		}
 
 		// Sanitize JWT issuer
-		if ( isset( $input['jwt_issuer'] ) ) {
-			$sanitized['jwt_issuer'] = sanitize_text_field( $input['jwt_issuer'] );
+		if ( isset( $input['jwt_iss'] ) ) {
+			$sanitized['jwt_iss'] = sanitize_text_field( $input['jwt_iss'] );
 		}
 
 		// Sanitize JWT audience
-		if ( isset( $input['jwt_audience'] ) ) {
-			$sanitized['jwt_audience'] = sanitize_text_field( $input['jwt_audience'] );
+		if ( isset( $input['jwt_aud'] ) ) {
+			$sanitized['jwt_aud'] = sanitize_text_field( $input['jwt_aud'] );
 		}
 
-		// Sanitize JWT expiry
-		if ( isset( $input['jwt_expiry'] ) ) {
-			$expiry = intval( $input['jwt_expiry'] );
-			$sanitized['jwt_expiry'] = max( 1, min( 1440, $expiry ) );
+		// Sanitize MemberPress plan mappings
+		if ( isset( $input['memberpress_free_ids'] ) ) {
+			$sanitized['memberpress_free_ids'] = sanitize_text_field( $input['memberpress_free_ids'] );
+		}
+
+		if ( isset( $input['memberpress_growth_ids'] ) ) {
+			$sanitized['memberpress_growth_ids'] = sanitize_text_field( $input['memberpress_growth_ids'] );
+		}
+
+		if ( isset( $input['memberpress_impact_ids'] ) ) {
+			$sanitized['memberpress_impact_ids'] = sanitize_text_field( $input['memberpress_impact_ids'] );
+		}
+
+		// Sanitize HTTP timeout
+		if ( isset( $input['http_timeout'] ) ) {
+			$timeout = intval( $input['http_timeout'] );
+			$sanitized['http_timeout'] = max( 10, min( 300, $timeout ) );
+		}
+
+		// Sanitize cooldown seconds
+		if ( isset( $input['cooldown_secs'] ) ) {
+			$cooldown = intval( $input['cooldown_secs'] );
+			$sanitized['cooldown_secs'] = max( 30, min( 300, $cooldown ) );
 		}
 
 		// Handle JWT secret
@@ -391,5 +538,129 @@ class Settings {
 			'has_jwt_secret'    => ! empty( ngoinfo_copilot_get_option( 'jwt_secret' ) ),
 		);
 	}
+
+	/**
+	 * Get API base URL setting
+	 *
+	 * @return string API base URL.
+	 */
+	public static function get_api_base_url() {
+		return ngoinfo_copilot_get_option( 'api_base_url', '' );
+	}
+
+	/**
+	 * Get JWT secret setting
+	 *
+	 * @return string JWT secret.
+	 */
+	public static function get_jwt_secret() {
+		$encrypted_secret = ngoinfo_copilot_get_option( 'jwt_secret' );
+		if ( empty( $encrypted_secret ) ) {
+			return '';
+		}
+		return ngoinfo_copilot_decrypt( $encrypted_secret );
+	}
+
+	/**
+	 * Get JWT issuer setting
+	 *
+	 * @return string JWT issuer.
+	 */
+	public static function get_jwt_iss() {
+		return ngoinfo_copilot_get_option( 'jwt_iss', 'ngoinfo-wp' );
+	}
+
+	/**
+	 * Get JWT audience setting
+	 *
+	 * @return string JWT audience.
+	 */
+	public static function get_jwt_aud() {
+		return ngoinfo_copilot_get_option( 'jwt_aud', 'grantpilot-api' );
+	}
+
+	/**
+	 * Get MemberPress Free Plan IDs setting
+	 *
+	 * @return string MemberPress Free Plan IDs.
+	 */
+	public static function get_memberpress_free_ids() {
+		return ngoinfo_copilot_get_option( 'memberpress_free_ids', '2268' );
+	}
+
+	/**
+	 * Get MemberPress Growth Plan IDs setting
+	 *
+	 * @return string MemberPress Growth Plan IDs.
+	 */
+	public static function get_memberpress_growth_ids() {
+		return ngoinfo_copilot_get_option( 'memberpress_growth_ids', '2259,2271' );
+	}
+
+	/**
+	 * Get MemberPress Impact Plan IDs setting
+	 *
+	 * @return string MemberPress Impact Plan IDs.
+	 */
+	public static function get_memberpress_impact_ids() {
+		return ngoinfo_copilot_get_option( 'memberpress_impact_ids', '2272,2273' );
+	}
+
+	/**
+	 * Get HTTP timeout setting
+	 *
+	 * @return int HTTP timeout in seconds.
+	 */
+	public static function get_http_timeout() {
+		return intval( ngoinfo_copilot_get_option( 'http_timeout', 60 ) );
+	}
+
+	/**
+	 * Get cooldown seconds setting
+	 *
+	 * @return int Cooldown in seconds.
+	 */
+	public static function get_cooldown_secs() {
+		return intval( ngoinfo_copilot_get_option( 'cooldown_secs', 60 ) );
+	}
+
+	/**
+	 * Get setting by name with fallback
+	 *
+	 * @param string $name Setting name.
+	 * @param mixed  $default Default value.
+	 * @return mixed Setting value.
+	 */
+	public static function get( $name, $default = '' ) {
+		switch ( $name ) {
+			case 'api_base_url':
+				return self::get_api_base_url();
+			case 'jwt_secret':
+				return self::get_jwt_secret();
+			case 'jwt_iss':
+				return self::get_jwt_iss();
+			case 'jwt_aud':
+				return self::get_jwt_aud();
+			case 'memberpress_free_ids':
+				return self::get_memberpress_free_ids();
+			case 'memberpress_growth_ids':
+				return self::get_memberpress_growth_ids();
+			case 'memberpress_impact_ids':
+				return self::get_memberpress_impact_ids();
+			case 'http_timeout':
+				return self::get_http_timeout();
+			case 'cooldown_secs':
+				return self::get_cooldown_secs();
+			default:
+				return ngoinfo_copilot_get_option( $name, $default );
+		}
+	}
 }
+
+
+
+
+
+
+
 

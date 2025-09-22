@@ -2,7 +2,7 @@
 /**
  * Usage widget public template
  *
- * @package NGOInfo\Copilot
+ * @package NGOInfo_Copilot
  */
 
 // Prevent direct access
@@ -11,7 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Format usage data
-$formatted_data = $this->format_usage_data( $usage_data['success'] ? $usage_data['data'] : null );
+$formatted_data = $usage_widget->format_usage_data( $usage_data['success'] ? $usage_data['data'] : null );
 
 // Generate CSS classes
 $widget_classes = array( 'ngoinfo-usage-widget' );
@@ -181,4 +181,11 @@ jQuery(document).ready(function($) {
 	$retryBtn.on('click', refreshUsage);
 });
 </script>
+
+
+
+
+
+
+
 

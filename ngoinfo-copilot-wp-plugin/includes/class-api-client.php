@@ -2,10 +2,8 @@
 /**
  * API client for NGOInfo Copilot backend
  *
- * @package NGOInfo\Copilot
+ * @package NGOInfo_Copilot
  */
-
-namespace NGOInfo\Copilot;
 
 // Prevent direct access
 if ( ! defined( 'ABSPATH' ) ) {
@@ -15,12 +13,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * API Client class
  */
-class Api_Client {
+class NGOInfo_Copilot_Api_Client {
 
 	/**
 	 * Auth instance
 	 *
-	 * @var Auth
+	 * @var NGOInfo_Copilot_Auth
 	 */
 	private $auth;
 
@@ -28,13 +26,13 @@ class Api_Client {
 	 * Constructor
 	 */
 	public function __construct() {
-		$this->auth = new Auth();
+		$this->auth = new NGOInfo_Copilot_Auth();
 	}
 
 	/**
 	 * Get usage summary from API
 	 *
-	 * @param \WP_User $user User to get usage for (optional, uses current user).
+	 * @param WP_User $user User to get usage for (optional, uses current user).
 	 * @return array|false Usage data or false on failure.
 	 */
 	public function get_usage_summary( $user = null ) {
@@ -42,12 +40,102 @@ class Api_Client {
 	}
 
 	/**
+	 * Make JSON POST request
+	 *
+	 * @param string $url Request URL.
+	 * @param array  $headers Request headers.
+	 * @param array  $body Request body data.
+	 * @param int    $timeout Request timeout.
+	 * @return array Response data with success, status_code, data/error, raw_body.
+	 */
+	public static function post_json( $url, $headers, $body, $timeout = 60 ) {
+		// Prepare request arguments
+		$args = array(
+			'method'      => 'POST',
+			'timeout'     => $timeout,
+			'redirection' => 0,
+			'httpversion' => '1.1',
+			'headers'     => array_merge( $headers, array(
+				'Content-Type' => 'application/json',
+				'Accept'       => 'application/json',
+				'User-Agent'   => 'NGOInfo-Copilot-WP/' . NGOINFO_COPILOT_VERSION,
+			) ),
+			'body'        => wp_json_encode( $body ),
+		);
+
+		// Log request (with sensitive data redacted)
+		$log_url = ngoinfo_copilot_redact_sensitive( $url );
+		ngoinfo_copilot_log( "API POST Request: {$log_url}", 'info' );
+
+		// Make request
+		$response = wp_remote_post( $url, $args );
+
+		// Handle request errors
+		if ( is_wp_error( $response ) ) {
+			$error_message = $response->get_error_message();
+			ngoinfo_copilot_log( "API POST Request failed: {$error_message}", 'error' );
+			
+			return array(
+				'success'     => false,
+				'status_code' => 0,
+				'error'       => array(
+					'code'    => 'REQUEST_FAILED',
+					'message' => $error_message,
+				),
+				'raw_body'    => '',
+			);
+		}
+
+		// Parse response
+		$status_code   = wp_remote_retrieve_response_code( $response );
+		$response_body = wp_remote_retrieve_body( $response );
+		$content_type  = wp_remote_retrieve_header( $response, 'content-type' );
+
+		// Log response status
+		ngoinfo_copilot_log( "API POST Response: {$status_code}", 'info' );
+
+		// Try to decode JSON response
+		$parsed_body = null;
+		if ( false !== strpos( $content_type, 'application/json' ) ) {
+			$parsed_body = json_decode( $response_body, true );
+		}
+
+		// Handle successful responses (2xx)
+		if ( $status_code >= 200 && $status_code < 300 ) {
+			return array(
+				'success'     => true,
+				'status_code' => $status_code,
+				'data'        => $parsed_body,
+				'raw_body'    => $response_body,
+			);
+		}
+
+		// Handle error responses
+		$api_client = new self();
+		$error = $api_client->normalize_error_response( $status_code, $parsed_body, $response_body );
+		
+		// Log error with request ID if available
+		$log_message = "API POST Error {$status_code}: {$error['message']}";
+		if ( ! empty( $error['request_id'] ) ) {
+			$log_message .= " (Request ID: {$error['request_id']})";
+		}
+		ngoinfo_copilot_log( $log_message, 'error' );
+
+		return array(
+			'success'     => false,
+			'status_code' => $status_code,
+			'error'       => $error,
+			'raw_body'    => $response_body,
+		);
+	}
+
+	/**
 	 * Make HTTP request to API
 	 *
-	 * @param string   $method HTTP method (GET, POST, PUT, DELETE).
-	 * @param string   $endpoint API endpoint (relative to base URL).
-	 * @param array    $data Request data for POST/PUT requests.
-	 * @param \WP_User $user User for authentication (optional, uses current user).
+	 * @param string  $method HTTP method (GET, POST, PUT, DELETE).
+	 * @param string  $endpoint API endpoint (relative to base URL).
+	 * @param array   $data Request data for POST/PUT requests.
+	 * @param WP_User $user User for authentication (optional, uses current user).
 	 * @return array|false Response data or false on failure.
 	 */
 	public function request( $method, $endpoint, $data = array(), $user = null ) {
@@ -64,7 +152,7 @@ class Api_Client {
 		// Prepare request arguments
 		$args = array(
 			'method'      => strtoupper( $method ),
-			'timeout'     => 30,
+			'timeout'     => 8, // Reduced from 15 to prevent 503 errors
 			'redirection' => 0,
 			'httpversion' => '1.1',
 			'headers'     => array(
@@ -82,52 +170,12 @@ class Api_Client {
 		// Add authentication header
 		$args = $this->auth->add_auth_header( $args, $user );
 
-		// Debug: Log API request details
-		$headers_redacted = $args['headers'];
-		if ( isset( $headers_redacted['Authorization'] ) ) {
-			$headers_redacted['Authorization'] = substr( $headers_redacted['Authorization'], 0, 10 ) . '...';
-		}
-		$request_data = array(
-			'url'     => $url,
-			'method'  => $method,
-			'headers' => $headers_redacted,
-		);
-		if ( in_array( $method, array( 'POST', 'PUT' ), true ) && ! empty( $data ) ) {
-			$request_data['body'] = $data;
-		}
-		ngoinfo_copilot_debug( 'API Request', $request_data );
-
 		// Log request (with sensitive data redacted)
 		$log_url = ngoinfo_copilot_redact_sensitive( $url );
 		ngoinfo_copilot_log( "API Request: {$method} {$log_url}", 'info' );
 
-		// Log minimal request info
-		ngoinfo_log( 'api.request' );
-		ngoinfo_log( array(
-			'url'      => $url,
-			'method'   => $method,
-			'has_auth' => isset( $args['headers']['Authorization'] ),
-		) );
-
 		// Make request
 		$response = wp_remote_request( $url, $args );
-
-		// Debug: Log API response
-		if ( ! is_wp_error( $response ) ) {
-			$code = wp_remote_retrieve_response_code( $response );
-			$body = wp_remote_retrieve_body( $response );
-			ngoinfo_copilot_debug( 'API Response', array( 
-				'code' => $code, 
-				'body_snippet' => substr( $body, 0, 300 ) 
-			) );
-			
-			// Log minimal response info
-			ngoinfo_log( 'api.response' );
-			ngoinfo_log( array(
-				'status'      => $code,
-				'body_snippet' => substr( $body, 0, 200 ),
-			) );
-		}
 
 		// Handle request errors
 		if ( is_wp_error( $response ) ) {
@@ -164,7 +212,7 @@ class Api_Client {
 
 		// Try to decode JSON response
 		$parsed_body = null;
-		if ( strpos( $content_type, 'application/json' ) !== false ) {
+		if ( false !== strpos( $content_type, 'application/json' ) ) {
 			$parsed_body = json_decode( $response_body, true );
 		}
 
@@ -270,82 +318,6 @@ class Api_Client {
 	}
 
 	/**
-	 * Test API connection and authentication
-	 *
-	 * @param \WP_User $user User to test with (optional, uses current user).
-	 * @return array Test results.
-	 */
-	public function test_connection( $user = null ) {
-		$status = $this->get_connection_status();
-		
-		if ( ! $status['configured'] ) {
-			return array(
-				'success' => false,
-				'message' => __( 'API not configured. Please configure API base URL and JWT secret.', 'ngoinfo-copilot' ),
-				'status'  => $status,
-			);
-		}
-
-		if ( null === $user ) {
-			$user = wp_get_current_user();
-		}
-
-		if ( ! $user || ! $user->exists() ) {
-			return array(
-				'success' => false,
-				'message' => __( 'No valid user available for authentication test.', 'ngoinfo-copilot' ),
-				'status'  => $status,
-			);
-		}
-
-		// Test JWT generation
-		$jwt_test = $this->auth->test_jwt_generation( $user );
-		if ( ! $jwt_test['success'] ) {
-			return array(
-				'success' => false,
-				'message' => __( 'JWT generation failed: ', 'ngoinfo-copilot' ) . $jwt_test['message'],
-				'status'  => $status,
-				'jwt_test' => $jwt_test,
-			);
-		}
-
-		// Test usage summary endpoint (lightest authenticated endpoint)
-		$usage_result = $this->get_usage_summary( $user );
-		
-		if ( false === $usage_result ) {
-			return array(
-				'success' => false,
-				'message' => __( 'API request failed.', 'ngoinfo-copilot' ),
-				'status'  => $status,
-				'jwt_test' => $jwt_test,
-			);
-		}
-
-		if ( ! $usage_result['success'] ) {
-			$error_msg = $usage_result['error']['message'];
-			if ( ! empty( $usage_result['error']['request_id'] ) ) {
-				$error_msg .= ' (Request ID: ' . $usage_result['error']['request_id'] . ')';
-			}
-
-			return array(
-				'success' => false,
-				'message' => __( 'API authentication failed: ', 'ngoinfo-copilot' ) . $error_msg,
-				'status'  => $status,
-				'jwt_test' => $jwt_test,
-				'api_response' => $usage_result,
-			);
-		}
-
-		return array(
-			'success' => true,
-			'message' => __( 'API connection and authentication successful.', 'ngoinfo-copilot' ),
-			'status'  => $status,
-			'jwt_test' => $jwt_test,
-			'api_response' => $usage_result,
-		);
-	}
-
-	/**
 	 * Format error for display in admin
 	 *
 	 * @param array $error Error array from API response.
@@ -365,4 +337,5 @@ class Api_Client {
 		return $message;
 	}
 }
+
 

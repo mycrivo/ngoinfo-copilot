@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: NGOInfo Copilot
- * Plugin URI: https://github.com/mycrivo/ngoinfo-copilot-wp
- * Description: WordPress plugin for NGOInfo Copilot - AI-powered proposal generation for NGOs. Integrates with FastAPI backend for secure JWT authentication, usage tracking, and proposal management.
+ * Plugin URI: https://ngoinfo.org
+ * Description: AI-powered proposal generation for NGOs. Integrates with NGOInfo Copilot backend API for secure authentication, usage tracking, and intelligent proposal creation.
  * Version: 0.1.0
  * Author: NGOInfo Copilot Team
  * Author URI: https://ngoinfo.org
@@ -15,7 +15,7 @@
  * Requires PHP: 7.4
  * Network: false
  *
- * @package NGOInfo\Copilot
+ * @package NGOInfo_Copilot
  */
 
 // Prevent direct access
@@ -65,12 +65,8 @@ class NGOInfo_Copilot {
 	 * Initialize plugin
 	 */
 	private function init() {
-		// Load helpers first
-		require_once NGOINFO_COPILOT_PLUGIN_DIR . 'includes/helpers.php';
-		
-		// Load autoloader
-		require_once NGOINFO_COPILOT_PLUGIN_DIR . 'includes/class-autoloader.php';
-		NGOInfo\Copilot\Autoloader::register();
+		// Load required files
+		$this->load_dependencies();
 
 		// Load text domain
 		add_action( 'plugins_loaded', array( $this, 'load_textdomain' ) );
@@ -81,6 +77,22 @@ class NGOInfo_Copilot {
 		// Activation and deactivation hooks
 		register_activation_hook( __FILE__, array( $this, 'activate' ) );
 		register_deactivation_hook( __FILE__, array( $this, 'deactivate' ) );
+	}
+
+	/**
+	 * Load plugin dependencies
+	 */
+	private function load_dependencies() {
+		require_once NGOINFO_COPILOT_PLUGIN_DIR . 'includes/helpers.php';
+		require_once NGOINFO_COPILOT_PLUGIN_DIR . 'includes/class-settings.php';
+		require_once NGOINFO_COPILOT_PLUGIN_DIR . 'includes/class-health.php';
+		require_once NGOINFO_COPILOT_PLUGIN_DIR . 'includes/class-auth.php';
+		require_once NGOINFO_COPILOT_PLUGIN_DIR . 'includes/class-api-client.php';
+		require_once NGOINFO_COPILOT_PLUGIN_DIR . 'includes/class-usage-widget.php';
+		require_once NGOINFO_COPILOT_PLUGIN_DIR . 'includes/class-diagnostics.php';
+		require_once NGOINFO_COPILOT_PLUGIN_DIR . 'includes/class-jwt-helper.php';
+		require_once NGOINFO_COPILOT_PLUGIN_DIR . 'includes/class-generator-service.php';
+		require_once NGOINFO_COPILOT_PLUGIN_DIR . 'includes/class-ajax-controller.php';
 	}
 
 	/**
@@ -99,20 +111,26 @@ class NGOInfo_Copilot {
 	 */
 	public function init_components() {
 		// Initialize settings
-		new NGOInfo\Copilot\Settings();
+		new NGOInfo_Copilot_Settings();
 
 		// Initialize health panel
-		new NGOInfo\Copilot\Health();
+		new NGOInfo_Copilot_Health();
 
 		// Initialize usage widget
-		new NGOInfo\Copilot\Usage_Widget();
+		new NGOInfo_Copilot_Usage_Widget();
+
+		// Initialize AJAX controller
+		new NGOInfo_Copilot_Ajax_Controller();
+
+		// Register shortcodes
+		add_shortcode( 'ngoinfo_copilot_generate', array( $this, 'render_generate_shortcode' ) );
 
 		// Load admin assets
 		if ( is_admin() ) {
 			add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_scripts' ) );
 		}
 
-		// Load public assets
+		// Load public assets conditionally
 		add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_public_scripts' ) );
 	}
 
@@ -123,7 +141,7 @@ class NGOInfo_Copilot {
 	 */
 	public function enqueue_admin_scripts( $hook_suffix ) {
 		// Only load on our settings pages
-		if ( strpos( $hook_suffix, 'ngoinfo-copilot' ) === false ) {
+		if ( 'settings_page_ngoinfo-copilot' !== $hook_suffix ) {
 			return;
 		}
 
@@ -149,6 +167,10 @@ class NGOInfo_Copilot {
 			array(
 				'ajax_url' => admin_url( 'admin-ajax.php' ),
 				'nonce'    => wp_create_nonce( 'ngoinfo_copilot_admin' ),
+				'strings'  => array(
+					'checking'  => __( 'Checking...', 'ngoinfo-copilot' ),
+					'run_check' => __( 'Run Health Check', 'ngoinfo-copilot' ),
+				),
 			)
 		);
 	}
@@ -157,6 +179,12 @@ class NGOInfo_Copilot {
 	 * Enqueue public scripts and styles
 	 */
 	public function enqueue_public_scripts() {
+		// Only enqueue if the current post contains the shortcode or is the grantpilot page
+		if ( $this->should_enqueue_generator_assets() ) {
+			NGOInfo_Copilot_Generator_Service::enqueue_assets();
+		}
+
+		// Always enqueue basic public styles
 		wp_enqueue_style(
 			'ngoinfo-copilot-public',
 			NGOINFO_COPILOT_PLUGIN_URL . 'assets/css/public.css',
@@ -174,19 +202,55 @@ class NGOInfo_Copilot {
 	}
 
 	/**
+	 * Check if generator assets should be enqueued
+	 *
+	 * @return bool True if assets should be enqueued.
+	 */
+	private function should_enqueue_generator_assets() {
+		global $post;
+
+		// Check if current post contains the shortcode
+		if ( $post && has_shortcode( $post->post_content, 'ngoinfo_copilot_generate' ) ) {
+			return true;
+		}
+
+		// Check if current page is 'grantpilot'
+		if ( is_page( 'grantpilot' ) ) {
+			return true;
+		}
+
+		return false;
+	}
+
+	/**
+	 * Render the generate shortcode
+	 *
+	 * @param array  $atts Shortcode attributes.
+	 * @param string $content Shortcode content.
+	 * @return string Shortcode output.
+	 */
+	public function render_generate_shortcode( $atts, $content = '' ) {
+		return NGOInfo_Copilot_Generator_Service::render_form();
+	}
+
+	/**
 	 * Plugin activation
 	 */
 	public function activate() {
 		// Create default options
 		$default_options = array(
-			'api_base_url'      => '',
-			'jwt_issuer'        => 'ngoinfo-wp',
-			'jwt_audience'      => 'ngoinfo-copilot',
-			'jwt_expiry'        => 15,
-			'jwt_secret'        => '',
-			'environment'       => 'staging',
-			'last_health_check' => '',
-			'last_error'        => '',
+			'api_base_url'           => '',
+			'jwt_iss'                => 'ngoinfo-wp',
+			'jwt_aud'                => 'grantpilot-api',
+			'jwt_secret'             => '',
+			'memberpress_free_ids'   => '2268',
+			'memberpress_growth_ids' => '2259,2271',
+			'memberpress_impact_ids' => '2272,2273',
+			'http_timeout'           => 60,
+			'cooldown_secs'          => 60,
+			'environment'            => 'staging',
+			'last_health_check'      => '',
+			'last_error'             => '',
 		);
 
 		foreach ( $default_options as $option => $value ) {
@@ -210,4 +274,11 @@ class NGOInfo_Copilot {
 
 // Initialize plugin
 NGOInfo_Copilot::get_instance();
+
+
+
+
+
+
+
 

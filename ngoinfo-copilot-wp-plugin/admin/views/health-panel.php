@@ -2,7 +2,7 @@
 /**
  * Health panel template
  *
- * @package NGOInfo\Copilot
+ * @package NGOInfo_Copilot
  */
 
 // Prevent direct access
@@ -10,24 +10,48 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-$health = new NGOInfo\Copilot\Health();
+$health = new NGOInfo_Copilot_Health();
 $status = $health->get_health_status();
+$last_result = $health->get_last_health_result();
 ?>
 
 <div class="ngoinfo-health-panel">
 	<div class="health-header">
 		<h3><?php esc_html_e( 'API Health Monitor', 'ngoinfo-copilot' ); ?></h3>
-		<div class="health-actions">
-			<button type="button" id="run-health-check" class="button button-primary">
-				<span class="dashicons dashicons-update"></span>
-				<?php esc_html_e( 'Run Health Check', 'ngoinfo-copilot' ); ?>
-			</button>
-			<a href="<?php echo esc_url( admin_url( 'admin-post.php?action=ngoinfo_copilot_health_check' ) ); ?>" class="button button-secondary">
-				<span class="dashicons dashicons-admin-tools"></span>
-				<?php esc_html_e( 'Admin Health Check', 'ngoinfo-copilot' ); ?>
-			</a>
-		</div>
 	</div>
+
+	<?php if ( ! empty( $last_result ) && ! empty( $last_result['message'] ) ) : ?>
+		<div class="notice notice-info" style="margin-top:10px;">
+			<p>
+				<strong><?php esc_html_e( 'Last Check:', 'ngoinfo-copilot' ); ?></strong>
+				<?php echo esc_html( $last_result['message'] ); ?>
+				<?php if ( ! empty( $last_result['status_code'] ) ) : ?>
+					(<?php echo esc_html( $last_result['status_code'] ); ?>)
+				<?php endif; ?>
+			</p>
+		</div>
+	<?php endif; ?>
+
+	<div class="health-actions" style="margin: 12px 0 20px;">
+		<button id="run-health-check" class="button button-primary">
+			<?php esc_html_e( 'Run Health Check', 'ngoinfo-copilot' ); ?>
+		</button>
+		<button id="run-jwt-diagnostics" class="button" style="margin-left:8px;">
+			<?php esc_html_e( 'Run JWT Diagnostics', 'ngoinfo-copilot' ); ?>
+		</button>
+	</div>
+
+	<div id="health-check-results" style="display:none;">
+		<div class="result-content"></div>
+	</div>
+
+	<div id="jwt-diagnostics-results" style="display:none; margin-top:14px;">
+		<div class="result-content"></div>
+	</div>
+
+	<p class="health-note">
+		<em><?php esc_html_e( 'This check runs server-side from WordPress; it avoids browser CORS.', 'ngoinfo-copilot' ); ?></em>
+	</p>
 
 	<!-- Current Status -->
 	<div class="health-status-card">
@@ -72,10 +96,119 @@ $status = $health->get_health_status();
 	</div>
 
 	<!-- Health Check Results -->
-	<div id="health-check-results" class="health-results" style="display: none;">
-		<h4><?php esc_html_e( 'Health Check Results', 'ngoinfo-copilot' ); ?></h4>
-		<div id="health-check-content"></div>
+	<?php if ( $last_result ) : ?>
+	<div class="health-results">
+		<h4><?php esc_html_e( 'Latest Health Check Results', 'ngoinfo-copilot' ); ?></h4>
+		<div class="health-check-content">
+			<?php if ( $last_result['success'] ) : ?>
+				<div class="health-result success">
+					<h5>
+						<span class="dashicons dashicons-yes-alt"></span>
+						<?php echo esc_html( $last_result['message'] ); ?>
+					</h5>
+					<div class="result-details">
+						<div class="result-row">
+							<strong><?php esc_html_e( 'Status Code:', 'ngoinfo-copilot' ); ?></strong> 
+							<?php echo esc_html( $last_result['status_code'] ); ?>
+						</div>
+						<div class="result-row">
+							<strong><?php esc_html_e( 'Response Time:', 'ngoinfo-copilot' ); ?></strong> 
+							<?php echo esc_html( $last_result['duration'] ); ?>ms
+						</div>
+						<?php if ( isset( $last_result['timestamp'] ) ) : ?>
+						<div class="result-row">
+							<strong><?php esc_html_e( 'Timestamp:', 'ngoinfo-copilot' ); ?></strong> 
+							<?php echo esc_html( mysql2date( 'F j, Y g:i a', $last_result['timestamp'] ) ); ?>
+						</div>
+						<?php endif; ?>
+						<?php if ( ! empty( $last_result['response'] ) ) : ?>
+						<div class="result-row">
+							<strong><?php esc_html_e( 'Response:', 'ngoinfo-copilot' ); ?></strong><br>
+							<div class="response-data">
+								<?php if ( isset( $last_result['response']['status'] ) && isset( $last_result['response']['db'] ) ) : ?>
+									<div class="status-badge status-<?php echo esc_attr( $last_result['response']['status'] ); ?>">
+										<?php 
+										if ( 'ok' === $last_result['response']['status'] && 'ok' === $last_result['response']['db'] ) {
+											echo '<span class="dashicons dashicons-yes-alt"></span> OK';
+										} elseif ( 'degraded' === $last_result['response']['status'] ) {
+											echo '<span class="dashicons dashicons-warning"></span> Degraded';
+										} else {
+											echo '<span class="dashicons dashicons-dismiss"></span> Down';
+										}
+										?>
+									</div>
+									<div class="db-status">
+										<strong><?php esc_html_e( 'Database:', 'ngoinfo-copilot' ); ?></strong>
+										<?php echo 'ok' === $last_result['response']['db'] ? '✓ OK' : '✗ Error'; ?>
+									</div>
+								<?php endif; ?>
+								<?php if ( isset( $last_result['response']['version'] ) ) : ?>
+									<div class="version-info">
+										<strong><?php esc_html_e( 'Version:', 'ngoinfo-copilot' ); ?></strong>
+										<?php echo esc_html( $last_result['response']['version'] ); ?>
+									</div>
+								<?php endif; ?>
+							</div>
+						</div>
+						<?php endif; ?>
+					</div>
+				</div>
+			<?php else : ?>
+				<div class="health-result error">
+					<h5>
+						<span class="dashicons dashicons-warning"></span>
+						<?php echo esc_html( $last_result['message'] ); ?>
+					</h5>
+					<div class="result-details">
+						<?php if ( $last_result['status_code'] ) : ?>
+						<div class="result-row">
+							<strong><?php esc_html_e( 'Status Code:', 'ngoinfo-copilot' ); ?></strong> 
+							<?php echo esc_html( $last_result['status_code'] ); ?>
+						</div>
+						<?php endif; ?>
+						<div class="result-row">
+							<strong><?php esc_html_e( 'Duration:', 'ngoinfo-copilot' ); ?></strong> 
+							<?php echo esc_html( $last_result['duration'] ); ?>ms
+						</div>
+						<?php if ( isset( $last_result['timestamp'] ) ) : ?>
+						<div class="result-row">
+							<strong><?php esc_html_e( 'Timestamp:', 'ngoinfo-copilot' ); ?></strong> 
+							<?php echo esc_html( mysql2date( 'F j, Y g:i a', $last_result['timestamp'] ) ); ?>
+						</div>
+						<?php endif; ?>
+						<?php if ( ! empty( $last_result['error'] ) ) : ?>
+						<div class="result-row">
+							<strong><?php esc_html_e( 'Error:', 'ngoinfo-copilot' ); ?></strong> 
+							<?php 
+							if ( is_array( $last_result['error'] ) ) {
+								echo esc_html( $last_result['error']['message'] );
+								if ( ! empty( $last_result['error']['request_id'] ) ) {
+									echo '<br><small>Request ID: ' . esc_html( $last_result['error']['request_id'] ) . '</small>';
+								}
+							} else {
+								echo esc_html( $last_result['error'] );
+							}
+							?>
+						</div>
+						<?php endif; ?>
+						
+						<?php if ( $last_result['status_code'] === 401 ) : ?>
+						<div class="result-row troubleshooting">
+							<strong><?php esc_html_e( 'Troubleshooting:', 'ngoinfo-copilot' ); ?></strong>
+							<span style="color: #d63638;"><?php esc_html_e( 'JWT secret mismatch. Verify the secret matches your backend configuration.', 'ngoinfo-copilot' ); ?></span>
+						</div>
+						<?php elseif ( $last_result['status_code'] === 404 ) : ?>
+						<div class="result-row troubleshooting">
+							<strong><?php esc_html_e( 'Troubleshooting:', 'ngoinfo-copilot' ); ?></strong>
+							<span style="color: #d63638;"><?php esc_html_e( 'Check API Base URL. Ensure it points to your backend with /healthcheck endpoint.', 'ngoinfo-copilot' ); ?></span>
+						</div>
+						<?php endif; ?>
+					</div>
+				</div>
+			<?php endif; ?>
+		</div>
 	</div>
+	<?php endif; ?>
 
 	<!-- Configuration Check -->
 	<div class="health-config-card">
@@ -102,7 +235,6 @@ $status = $health->get_health_status();
 	<div class="health-cors-card">
 		<h4><?php esc_html_e( 'CORS Requirements', 'ngoinfo-copilot' ); ?></h4>
 		<p><?php esc_html_e( 'The backend must allow your WordPress site\'s origin for CORS requests. This was configured in Phase 0 of the backend hardening.', 'ngoinfo-copilot' ); ?></p>
-		<p><?php esc_html_e( 'If you experience CORS errors during health checks, verify your domain is included in the backend CORS_ALLOWED_ORIGINS configuration.', 'ngoinfo-copilot' ); ?></p>
 		
 		<div class="cors-domains">
 			<strong><?php esc_html_e( 'Expected allowed origins:', 'ngoinfo-copilot' ); ?></strong>
@@ -115,74 +247,58 @@ $status = $health->get_health_status();
 	</div>
 </div>
 
-<script type="text/javascript">
-jQuery(document).ready(function($) {
-	$('#run-health-check').on('click', function() {
-		var $button = $(this);
-		var $results = $('#health-check-results');
-		var $content = $('#health-check-content');
-		
-		// Disable button and show loading
-		$button.prop('disabled', true);
-		$button.find('.dashicons').addClass('spin');
-		$button.find('span:not(.dashicons)').text('<?php esc_html_e( 'Checking...', 'ngoinfo-copilot' ); ?>');
-		
-		// Clear previous results
-		$results.hide();
-		$content.empty();
-		
-		// Make AJAX request
-		$.post(ajaxurl, {
-			action: 'ngoinfo_copilot_health_check',
-			nonce: ngoinfo_copilot_admin.nonce
-		}, function(response) {
-			// Re-enable button
-			$button.prop('disabled', false);
-			$button.find('.dashicons').removeClass('spin');
-			$button.find('span:not(.dashicons)').text('<?php esc_html_e( 'Run Health Check', 'ngoinfo-copilot' ); ?>');
-			
-			// Show results
-			$results.show();
-			
-			if (response.success) {
-				$content.html(
-					'<div class="health-result success">' +
-					'<h5><span class="dashicons dashicons-yes-alt"></span>' + response.data.message + '</h5>' +
-					'<div class="result-details">' +
-					'<div class="result-row"><strong><?php esc_html_e( 'Status Code:', 'ngoinfo-copilot' ); ?></strong> ' + response.data.status_code + '</div>' +
-					'<div class="result-row"><strong><?php esc_html_e( 'Response Time:', 'ngoinfo-copilot' ); ?></strong> ' + response.data.duration + 'ms</div>' +
-					(response.data.response ? '<div class="result-row"><strong><?php esc_html_e( 'Response:', 'ngoinfo-copilot' ); ?></strong><br><pre>' + JSON.stringify(response.data.response, null, 2) + '</pre></div>' : '') +
-					'</div>' +
-					'</div>'
-				);
-			} else {
-				$content.html(
-					'<div class="health-result error">' +
-					'<h5><span class="dashicons dashicons-warning"></span>' + response.data.message + '</h5>' +
-					'<div class="result-details">' +
-					(response.data.status_code ? '<div class="result-row"><strong><?php esc_html_e( 'Status Code:', 'ngoinfo-copilot' ); ?></strong> ' + response.data.status_code + '</div>' : '') +
-					'<div class="result-row"><strong><?php esc_html_e( 'Duration:', 'ngoinfo-copilot' ); ?></strong> ' + response.data.duration + 'ms</div>' +
-					(response.data.error ? '<div class="result-row"><strong><?php esc_html_e( 'Error:', 'ngoinfo-copilot' ); ?></strong> ' + response.data.error + '</div>' : '') +
-					'</div>' +
-					'</div>'
-				);
-			}
-		}).fail(function() {
-			// Re-enable button
-			$button.prop('disabled', false);
-			$button.find('.dashicons').removeClass('spin');
-			$button.find('span:not(.dashicons)').text('<?php esc_html_e( 'Run Health Check', 'ngoinfo-copilot' ); ?>');
-			
-			$results.show();
-			$content.html('<div class="health-result error"><h5><span class="dashicons dashicons-warning"></span><?php esc_html_e( 'Request failed. Please try again.', 'ngoinfo-copilot' ); ?></h5></div>');
-		});
-	});
-});
-</script>
+
 
 <style>
 .ngoinfo-health-panel {
 	max-width: 800px;
+}
+
+.health-note {
+	font-style: italic;
+	color: #666;
+	margin: 10px 0;
+}
+
+.response-data {
+	margin-top: 10px;
+	padding: 10px;
+	background: #f9f9f9;
+	border-radius: 4px;
+}
+
+.response-data .status-badge {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	padding: 5px 10px;
+	border-radius: 4px;
+	font-weight: 600;
+	margin-bottom: 8px;
+}
+
+.response-data .status-badge.status-ok {
+	background: #d1ecf1;
+	color: #0c5460;
+}
+
+.response-data .status-badge.status-degraded {
+	background: #fff3cd;
+	color: #664d03;
+}
+
+.response-data .db-status,
+.response-data .version-info {
+	margin: 5px 0;
+	font-size: 14px;
+}
+
+.result-row.troubleshooting {
+	margin-top: 10px;
+	padding: 10px;
+	background: #fff3cd;
+	border: 1px solid #ffeaa7;
+	border-radius: 4px;
 }
 
 .health-header {
@@ -192,26 +308,12 @@ jQuery(document).ready(function($) {
 	margin-bottom: 20px;
 }
 
-.health-header h3 {
-	margin: 0;
-}
-
-.health-actions {
-	display: flex;
-	gap: 10px;
-}
-
 .health-status-card, .health-results, .health-config-card, .health-cors-card {
 	background: #fff;
 	border: 1px solid #c3c4c7;
 	border-radius: 4px;
 	padding: 20px;
 	margin-bottom: 20px;
-}
-
-.health-status-card h4, .health-results h4, .health-config-card h4, .health-cors-card h4 {
-	margin-top: 0;
-	margin-bottom: 15px;
 }
 
 .status-indicator {
@@ -250,20 +352,11 @@ jQuery(document).ready(function($) {
 	margin-right: 10px;
 }
 
-.status-row.error {
-	color: #d63638;
-}
-
-.config-checks {
-	display: flex;
-	flex-direction: column;
-	gap: 10px;
-}
-
 .config-check {
 	display: flex;
 	align-items: center;
 	gap: 8px;
+	margin-bottom: 10px;
 }
 
 .config-check.check-pass {
@@ -308,10 +401,6 @@ jQuery(document).ready(function($) {
 	gap: 8px;
 }
 
-.result-details {
-	font-size: 14px;
-}
-
 .result-row {
 	margin-bottom: 5px;
 }
@@ -323,10 +412,6 @@ jQuery(document).ready(function($) {
 	margin-top: 5px;
 	overflow-x: auto;
 	font-size: 12px;
-}
-
-.cors-domains {
-	margin-top: 15px;
 }
 
 .cors-domains ul {
@@ -344,4 +429,3 @@ jQuery(document).ready(function($) {
 	to { transform: rotate(360deg); }
 }
 </style>
-

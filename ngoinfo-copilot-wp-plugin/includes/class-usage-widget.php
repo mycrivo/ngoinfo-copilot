@@ -2,10 +2,8 @@
 /**
  * Usage widget for NGOInfo Copilot
  *
- * @package NGOInfo\Copilot
+ * @package NGOInfo_Copilot
  */
-
-namespace NGOInfo\Copilot;
 
 // Prevent direct access
 if ( ! defined( 'ABSPATH' ) ) {
@@ -15,12 +13,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * Usage Widget class
  */
-class Usage_Widget {
+class NGOInfo_Copilot_Usage_Widget {
 
 	/**
 	 * API Client instance
 	 *
-	 * @var Api_Client
+	 * @var NGOInfo_Copilot_Api_Client
 	 */
 	private $api_client;
 
@@ -28,7 +26,7 @@ class Usage_Widget {
 	 * Constructor
 	 */
 	public function __construct() {
-		$this->api_client = new Api_Client();
+		$this->api_client = new NGOInfo_Copilot_Api_Client();
 		
 		// Register shortcode
 		add_shortcode( 'ngoinfo_copilot_usage', array( $this, 'render_shortcode' ) );
@@ -92,6 +90,7 @@ class Usage_Widget {
 
 		// Render widget
 		ob_start();
+		$usage_widget = $this; // Pass current instance to template
 		require NGOINFO_COPILOT_PLUGIN_DIR . 'public/views/usage-widget.php';
 		return ob_get_clean();
 	}
@@ -99,8 +98,8 @@ class Usage_Widget {
 	/**
 	 * Get usage data with caching
 	 *
-	 * @param \WP_User $user User to get usage for.
-	 * @param int      $cache_time Cache time in seconds.
+	 * @param WP_User $user User to get usage for.
+	 * @param int     $cache_time Cache time in seconds.
 	 * @return array Usage data.
 	 */
 	private function get_usage_data( $user, $cache_time = 300 ) {
@@ -116,18 +115,7 @@ class Usage_Widget {
 		}
 
 		// Fetch fresh data from API
-		try {
-			$api_response = $this->api_client->get_usage_summary( $user );
-		} catch ( \Exception $e ) {
-			ngoinfo_log( 'usage_widget.exception' );
-			ngoinfo_log( array(
-				'error'   => $e->getMessage(),
-				'code'    => $e->getCode(),
-				'file'    => $e->getFile(),
-				'line'    => $e->getLine(),
-			) );
-			$api_response = false;
-		}
+		$api_response = $this->api_client->get_usage_summary( $user );
 		
 		$usage_data = array(
 			'timestamp' => time(),
@@ -268,18 +256,12 @@ class Usage_Widget {
 			'status'        => $status,
 		);
 	}
-
-	/**
-	 * Get widget themes
-	 *
-	 * @return array Available themes.
-	 */
-	public function get_available_themes() {
-		return array(
-			'default' => __( 'Default', 'ngoinfo-copilot' ),
-			'compact' => __( 'Compact', 'ngoinfo-copilot' ),
-			'minimal' => __( 'Minimal', 'ngoinfo-copilot' ),
-		);
-	}
 }
+
+
+
+
+
+
+
 

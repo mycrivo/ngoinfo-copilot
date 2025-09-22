@@ -2,7 +2,7 @@
 /**
  * Settings page template
  *
- * @package NGOInfo\Copilot
+ * @package NGOInfo_Copilot
  */
 
 // Prevent direct access
@@ -10,18 +10,24 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-$status_info = ( new NGOInfo\Copilot\Settings() )->get_status_info();
+// Define required variables that are missing
+$page_slug = 'ngoinfo-copilot';
+$active_tab = isset( $_GET['tab'] ) ? sanitize_text_field( wp_unslash( $_GET['tab'] ) ) : 'settings';
+$settings_group = 'ngoinfo_copilot_settings';
+
+$settings = new NGOInfo_Copilot_Settings();
+$status_info = $settings->get_status_info();
 ?>
 
 <div class="wrap">
 	<h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
 
 	<h2 class="nav-tab-wrapper">
-		<a href="?page=<?php echo esc_attr( $this->page_slug ); ?>&tab=settings" 
+		<a href="?page=<?php echo esc_attr( $page_slug ); ?>&tab=settings" 
 		   class="nav-tab <?php echo 'settings' === $active_tab ? 'nav-tab-active' : ''; ?>">
 			<?php esc_html_e( 'Settings', 'ngoinfo-copilot' ); ?>
 		</a>
-		<a href="?page=<?php echo esc_attr( $this->page_slug ); ?>&tab=health" 
+		<a href="?page=<?php echo esc_attr( $page_slug ); ?>&tab=health" 
 		   class="nav-tab <?php echo 'health' === $active_tab ? 'nav-tab-active' : ''; ?>">
 			<?php esc_html_e( 'Health', 'ngoinfo-copilot' ); ?>
 		</a>
@@ -56,7 +62,7 @@ $status_info = ( new NGOInfo\Copilot\Settings() )->get_status_info();
 				<div class="status-item">
 					<strong><?php esc_html_e( 'Last Health Check:', 'ngoinfo-copilot' ); ?></strong>
 					<?php if ( $status_info['last_health_check'] ) : ?>
-						<span><?php echo esc_html( $status_info['last_health_check'] ); ?></span>
+						<span><?php echo esc_html( mysql2date( 'F j, Y g:i a', $status_info['last_health_check'] ) ); ?></span>
 					<?php else : ?>
 						<span><?php esc_html_e( 'Never', 'ngoinfo-copilot' ); ?></span>
 					<?php endif; ?>
@@ -73,21 +79,11 @@ $status_info = ( new NGOInfo\Copilot\Settings() )->get_status_info();
 		<!-- Settings Form -->
 		<form method="post" action="options.php">
 			<?php
-			settings_fields( $this->settings_group );
-			do_settings_sections( $this->page_slug );
+			settings_fields( $settings_group );
+			do_settings_sections( $page_slug );
 			submit_button();
 			?>
 		</form>
-
-		<!-- Auth Self-Test -->
-		<div class="ngoinfo-auth-test-card">
-			<h3><?php esc_html_e( 'Authentication Self-Test', 'ngoinfo-copilot' ); ?></h3>
-			<p><?php esc_html_e( 'Test JWT generation and API authentication to verify your configuration.', 'ngoinfo-copilot' ); ?></p>
-			<a href="<?php echo esc_url( admin_url( 'admin-post.php?action=ngoinfo_copilot_auth_test' ) ); ?>" class="button button-secondary">
-				<span class="dashicons dashicons-admin-users"></span>
-				<?php esc_html_e( 'Run Auth Self-Test', 'ngoinfo-copilot' ); ?>
-			</a>
-		</div>
 
 		<!-- CORS Information -->
 		<div class="ngoinfo-info-card">
@@ -111,7 +107,7 @@ $status_info = ( new NGOInfo\Copilot\Settings() )->get_status_info();
 </div>
 
 <style>
-.ngoinfo-status-card, .ngoinfo-info-card, .ngoinfo-auth-test-card {
+.ngoinfo-status-card, .ngoinfo-info-card {
 	background: #fff;
 	border: 1px solid #c3c4c7;
 	border-radius: 4px;
@@ -119,7 +115,7 @@ $status_info = ( new NGOInfo\Copilot\Settings() )->get_status_info();
 	margin: 20px 0;
 }
 
-.ngoinfo-status-card h3, .ngoinfo-info-card h3, .ngoinfo-auth-test-card h3 {
+.ngoinfo-status-card h3, .ngoinfo-info-card h3 {
 	margin-top: 0;
 }
 
@@ -160,5 +156,12 @@ $status_info = ( new NGOInfo\Copilot\Settings() )->get_status_info();
 .ngoinfo-info-card ul {
 	margin-left: 20px;
 }
+
+@media (max-width: 782px) {
+	.status-grid {
+		grid-template-columns: 1fr;
+	}
+}
 </style>
+
 

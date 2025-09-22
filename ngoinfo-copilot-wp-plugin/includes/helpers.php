@@ -2,7 +2,7 @@
 /**
  * Helper functions for NGOInfo Copilot plugin
  *
- * @package NGOInfo\Copilot
+ * @package NGOInfo_Copilot
  */
 
 // Prevent direct access
@@ -33,20 +33,20 @@ function ngoinfo_copilot_update_option( $option_name, $value ) {
 }
 
 /**
- * Encrypt a value using OpenSSL
+ * Encrypt a value using WordPress salts
  *
  * @param string $value Value to encrypt.
- * @param string $key   Encryption key.
- * @return string Encrypted value (base64 encoded).
+ * @return string|false Encrypted value (base64 encoded) or false on failure.
  */
-function ngoinfo_copilot_encrypt( $value, $key = '' ) {
-	if ( empty( $key ) ) {
-		$key = wp_salt( 'nonce' );
+function ngoinfo_copilot_encrypt( $value ) {
+	if ( ! function_exists( 'openssl_encrypt' ) ) {
+		return false;
 	}
 
+	$key = wp_salt( 'nonce' );
 	$cipher = 'AES-256-CBC';
-	$ivlen  = openssl_cipher_iv_length( $cipher );
-	$iv     = openssl_random_pseudo_bytes( $ivlen );
+	$ivlen = openssl_cipher_iv_length( $cipher );
+	$iv = openssl_random_pseudo_bytes( $ivlen );
 
 	$encrypted = openssl_encrypt( $value, $cipher, $key, 0, $iv );
 	
@@ -59,15 +59,14 @@ function ngoinfo_copilot_encrypt( $value, $key = '' ) {
 }
 
 /**
- * Decrypt a value using OpenSSL
+ * Decrypt a value using WordPress salts
  *
  * @param string $encrypted_value Encrypted value (base64 encoded).
- * @param string $key             Encryption key.
  * @return string|false Decrypted value or false on failure.
  */
-function ngoinfo_copilot_decrypt( $encrypted_value, $key = '' ) {
-	if ( empty( $key ) ) {
-		$key = wp_salt( 'nonce' );
+function ngoinfo_copilot_decrypt( $encrypted_value ) {
+	if ( ! function_exists( 'openssl_decrypt' ) ) {
+		return false;
 	}
 
 	$data = base64_decode( $encrypted_value );
@@ -75,14 +74,15 @@ function ngoinfo_copilot_decrypt( $encrypted_value, $key = '' ) {
 		return false;
 	}
 
+	$key = wp_salt( 'nonce' );
 	$cipher = 'AES-256-CBC';
-	$ivlen  = openssl_cipher_iv_length( $cipher );
+	$ivlen = openssl_cipher_iv_length( $cipher );
 	
 	if ( strlen( $data ) <= $ivlen ) {
 		return false;
 	}
 
-	$iv        = substr( $data, 0, $ivlen );
+	$iv = substr( $data, 0, $ivlen );
 	$encrypted = substr( $data, $ivlen );
 
 	return openssl_decrypt( $encrypted, $cipher, $key, 0, $iv );
@@ -155,6 +155,12 @@ function ngoinfo_copilot_log( $message, $level = 'info' ) {
 		$message
 	);
 
+	// Also log to specific plugin log file for easier debugging
+	if ( defined( 'WP_CONTENT_DIR' ) ) {
+		$plugin_log = WP_CONTENT_DIR . '/ngoinfo-copilot-debug.log';
+		error_log( $log_entry . PHP_EOL, 3, $plugin_log );
+	}
+
 	error_log( $log_entry );
 }
 
@@ -198,29 +204,14 @@ function ngoinfo_copilot_validate_jwt_secret( $secret ) {
 }
 
 /**
- * Debug logging function for NGOInfo Copilot
+ * Pretty print array/object to HTML <pre> safely
  *
- * @param string $message Debug message.
- * @param array  $context Additional context data.
+ * @param mixed $data Data to pretty print.
+ * @return string HTML-safe pretty printed JSON.
  */
-function ngoinfo_copilot_debug( $message, $context = array() ) {
-	if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-		$log = '[NGOINFO DEBUG] ' . $message;
-		if ( ! empty( $context ) ) {
-			$log .= ' | ' . wp_json_encode( $context );
-		}
-		error_log( $log );
-	}
+function ngoinfo_copilot_pretty_json( $data ) {
+	$json = wp_json_encode( $data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES );
+	return '<pre>' . esc_html( $json ) . '</pre>';
 }
 
-/**
- * Minimal logging function for NGOInfo Copilot
- *
- * @param mixed $m Message or data to log.
- */
-function ngoinfo_log( $m ) {
-	if ( function_exists( 'error_log' ) ) {
-		error_log( '[NGOINFO] ' . ( is_scalar( $m ) ? $m : wp_json_encode( $m ) ) );
-	}
-}
 

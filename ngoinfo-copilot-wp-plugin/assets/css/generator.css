@@ -1,0 +1,158 @@
+/**
+ * NGOInfo Copilot Generator Styles
+ *
+ * @package NGOInfo_Copilot
+ */
+
+.ngoinfo-copilot-generator-form {
+    max-width: 600px;
+    margin: 20px auto;
+    padding: 20px;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.ngoinfo-copilot-generator-form .form-group {
+    margin-bottom: 20px;
+}
+
+.ngoinfo-copilot-generator-form label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 600;
+    color: #333;
+}
+
+.ngoinfo-copilot-generator-form input[type="text"],
+.ngoinfo-copilot-generator-form input[type="number"] {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    transition: border-color 0.3s ease;
+}
+
+.ngoinfo-copilot-generator-form input[type="text"]:focus,
+.ngoinfo-copilot-generator-form input[type="number"]:focus {
+    outline: none;
+    border-color: #0073aa;
+    box-shadow: 0 0 0 1px #0073aa;
+}
+
+.ngoinfo-copilot-generator-form .btn-primary {
+    background: #0073aa;
+    color: #fff;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 4px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.ngoinfo-copilot-generator-form .btn-primary:hover:not(:disabled) {
+    background: #005a87;
+}
+
+.ngoinfo-copilot-generator-form .btn-primary:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+}
+
+.ngoinfo-copilot-generator-form .btn-spinner {
+    display: none;
+}
+
+.ngoinfo-copilot-generator-form .btn-primary:disabled .btn-spinner {
+    display: inline;
+}
+
+.ngoinfo-copilot-generator-form .btn-primary:disabled .btn-text {
+    display: none;
+}
+
+.status-message {
+    margin-top: 20px;
+    padding: 15px;
+    border-radius: 4px;
+    display: none;
+}
+
+.status-message.success {
+    background: #d4edda;
+    border: 1px solid #c3e6cb;
+    color: #155724;
+}
+
+.status-message.error {
+    background: #f8d7da;
+    border: 1px solid #f5c6cb;
+    color: #721c24;
+}
+
+.status-message h4 {
+    margin: 0 0 10px 0;
+    font-size: 16px;
+}
+
+.status-message .proposal-preview {
+    margin-top: 10px;
+}
+
+.status-message .preview-content {
+    background: #f8f9fa;
+    padding: 10px;
+    border-radius: 4px;
+    margin-top: 10px;
+    white-space: pre-wrap;
+    font-family: monospace;
+    font-size: 12px;
+}
+
+.ngoinfo-copilot-warning {
+    background: #fff3cd;
+    border: 1px solid #ffeaa7;
+    color: #856404;
+    padding: 15px;
+    border-radius: 4px;
+    margin: 20px 0;
+}
+
+.ngoinfo-copilot-warning p {
+    margin: 0;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .ngoinfo-copilot-generator-form {
+        margin: 10px;
+        padding: 15px;
+    }
+    
+    .ngoinfo-copilot-generator-form input[type="text"],
+    .ngoinfo-copilot-generator-form input[type="number"] {
+        font-size: 16px; /* Prevent zoom on iOS */
+    }
+}
+
+/* Loading spinner */
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.btn-spinner::after {
+    content: '';
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid #ffffff;
+    border-radius: 50%;
+    border-top-color: transparent;
+    animation: spin 1s ease-in-out infinite;
+    margin-right: 8px;
+}
